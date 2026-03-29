@@ -6,6 +6,7 @@ import { Community } from "./components/Community";
 import { DxTools } from "./components/DxTools";
 import { MarketPrice } from "./components/MarketPrice";
 import { Marketplace } from "./components/Marketplace";
+import { ChatPage } from "./components/ChatPage";
 import { SignupPage } from "./components/SignupPage";
 import { RegisterPage } from "./components/RegisterPage";
 import { LoginPage } from "./components/LoginPage";
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
       { path: "tools", Component: DxTools },
       { path: "market-price", Component: MarketPrice },
       { path: "trade", Component: Marketplace },
+      { path: "chat", Component: ChatPage },
     ],
   },
 ]);
