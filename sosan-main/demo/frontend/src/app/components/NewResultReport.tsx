@@ -3,10 +3,10 @@ import { Link } from "react-router";
 import {
   Download, RefreshCw, MapPin, TrendingUp as TrendUp,
   CheckCircle2, AlertTriangle, ChevronRight, Clock,
-  LayoutGrid, FileText, Hammer, Rocket, Circle,
+  LayoutGrid, FileText, Circle,
 } from "lucide-react";
 import type { AiAnalysisResult } from "../utils/openai";
-import type { SbizStoreData, CommercialContext } from "../utils/budongsan";
+import type { SbizStoreData, CommercialContext, RoneRentContext } from "../utils/budongsan";
 
 /* ── 공통 헤더 ── */
 function ReportHeader({ onReset }: { onReset: () => void }) {
@@ -96,13 +96,14 @@ const RISK_BG: Record<string, string>    = { "높음": "rgba(239,68,68,0.1)", "�
    신생 창업자 리포트 (메인 export)
 ───────────────────────────────────────── */
 export function NewResultReport({
-  answers, aiResult, aiError, sbizData, commercialCtx, onReset, onSwitchToExisting,
+  answers, aiResult, aiError, sbizData, commercialCtx, roneData, onReset, onSwitchToExisting,
 }: {
   answers: Record<string, string | string[]>;
   aiResult: AiAnalysisResult | null;
   aiError: boolean;
   sbizData: SbizStoreData | null;
   commercialCtx: CommercialContext | null;
+  roneData: RoneRentContext | null;
   onReset: () => void;
   onSwitchToExisting?: () => void;
 }) {
@@ -122,6 +123,7 @@ export function NewResultReport({
           aiResult={aiResult}
           sbizData={sbizData}
           commercialCtx={commercialCtx}
+          roneData={roneData}
           onSwitchToExisting={onSwitchToExisting}
         />
         <ReportFooter />
@@ -141,17 +143,16 @@ const STAGES = [
   { num: 5, label: "사업 계획 수립" },
   { num: 6, label: "임대료 추정" },
   { num: 7, label: "인허가 및 등록" },
-  { num: 8, label: "인테리어 및 설비" },
-  { num: 9, label: "시험 운영 (피드백)" },
 ];
 
 function LocationAnalysisSection({
-  answers, aiResult, sbizData, commercialCtx, onSwitchToExisting,
+  answers, aiResult, sbizData, commercialCtx, roneData, onSwitchToExisting,
 }: {
   answers: Record<string, string | string[]>;
   aiResult: AiAnalysisResult | null;
   sbizData: SbizStoreData | null;
   commercialCtx: CommercialContext | null;
+  roneData: RoneRentContext | null;
   onSwitchToExisting?: () => void;
 }) {
   const [currentStep, setCurrentStep] = useState(2);
@@ -509,7 +510,7 @@ function LocationAnalysisSection({
                 <p style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.5)" }}>
                   {commercialCtx
                     ? `국토교통부 실거래가 API · ${commercialCtx.latestYearMonth} 기준 · ${commercialCtx.sampleCount}건 분석`
-                    : "지역 시세 기반 AI 추정 (국토교통부 실거래가 데이터 없음)"}
+                    : "지역 시세 기반 AI 추정"}
                 </p>
               </div>
 
@@ -589,6 +590,43 @@ function LocationAnalysisSection({
                       </p>
                     </div>
                   )}
+
+                  {/* 한국부동산원 R-ONE 임대동향 */}
+                  {roneData && roneData.items.length > 0 && (
+                    <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: "16px", padding: "18px 20px" }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <p style={{ fontSize: "0.82rem", fontWeight: 700, color: "white" }}>
+                          한국부동산원 상업용부동산 임대동향
+                        </p>
+                        <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "99px", background: "rgba(99,102,241,0.15)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.3)" }}>
+                          {roneData.period}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0">
+                        {roneData.items.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between py-2.5" style={{ borderBottom: i < roneData.items.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                            <div>
+                              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "white" }}>{item.region} · {item.type}</p>
+                              {item.vacancyRate > 0 && (
+                                <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+                                  공실률 {item.vacancyRate.toFixed(1)}%
+                                </p>
+                              )}
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <p style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.4)", marginBottom: "2px" }}>임대가격지수</p>
+                              <p style={{ fontSize: "0.9rem", fontWeight: 700, color: "#a5b4fc" }}>
+                                {item.rentIndex > 0 ? item.rentIndex.toFixed(1) : "-"}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.2)", marginTop: "10px" }}>
+                        {roneData.source} · 기준시점 2021년 4분기=100
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: "16px", padding: "40px", textAlign: "center" }}>
@@ -662,131 +700,6 @@ function LocationAnalysisSection({
                     })}
                   </div>
                 </div>
-              </>
-            );
-          })()}
-
-          {/* ══ 단계 8: 인테리어 및 설비 ══ */}
-          {currentStep === 8 && (() => {
-            const plan = aiResult?.interiorPlan;
-            const PRIORITY_COLOR: Record<string, string> = { "필수": "#ef4444", "권장": "#f59e0b", "선택": "#6b7280" };
-            return (
-              <>
-                <div className="mb-6">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-4" style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", fontSize: "0.75rem", fontWeight: 600, color: "#34d399" }}>
-                    <Hammer style={{ width: "11px", height: "11px" }} /> 현재 단계
-                  </div>
-                  <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2rem)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: "6px" }}>인테리어 및 설비</h2>
-                  <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)" }}>매장을 멋지게 꾸며요</p>
-                </div>
-
-                {plan ? (
-                  <div className="flex flex-col gap-4 mb-4">
-                    <div style={{ background: "rgba(16,185,129,0.07)", border: "1.5px solid rgba(16,185,129,0.25)", borderRadius: "16px", padding: "20px" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#34d399" }}>AI 추천 스타일</span>
-                          <p style={{ fontSize: "1.1rem", fontWeight: 800, color: "white" }}>{plan.style}</p>
-                        </div>
-                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#34d399" }}>{plan.estimatedCost}</span>
-                      </div>
-                      <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.5)" }}>{plan.styleDesc}</p>
-                    </div>
-
-                    <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px" }}>
-                      <p style={{ fontSize: "0.9rem", fontWeight: 700, color: "white", marginBottom: "14px" }}>설비·비용 항목</p>
-                      <div className="flex flex-col gap-0">
-                        {plan.items.map((item, i) => (
-                          <div key={i} className="flex items-center justify-between py-3" style={{ borderBottom: i < plan.items.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                            <div className="flex items-center gap-3">
-                              <span style={{ fontSize: "0.62rem", fontWeight: 700, padding: "2px 7px", borderRadius: "99px", background: `${PRIORITY_COLOR[item.priority]}18`, color: PRIORITY_COLOR[item.priority] }}>{item.priority}</span>
-                              <div>
-                                <p style={{ fontSize: "0.82rem", color: "white", fontWeight: 500 }}>{item.detail}</p>
-                                <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.3)" }}>{item.category}</p>
-                              </div>
-                            </div>
-                            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>{item.cost}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "16px", padding: "18px" }}>
-                      <p style={{ fontSize: "0.78rem", fontWeight: 700, color: "#34d399", marginBottom: "10px" }}>💡 AI 절감·차별화 팁</p>
-                      {plan.aiTips.map((tip, i) => (
-                        <p key={i} className="flex items-start gap-2 mb-2" style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)" }}>
-                          <span style={{ fontWeight: 700, color: "#34d399", flexShrink: 0 }}>{i + 1}.</span>{tip}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: "16px", padding: "40px", textAlign: "center" }}>
-                    <p style={{ color: "rgba(255,255,255,0.25)" }}>AI 분석 결과를 불러오는 중입니다.</p>
-                  </div>
-                )}
-              </>
-            );
-          })()}
-
-          {/* ══ 단계 9: 시험 운영 ══ */}
-          {currentStep === 9 && (() => {
-            const plan = aiResult?.trialRunPlan;
-            return (
-              <>
-                <div className="mb-6">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-4" style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", fontSize: "0.75rem", fontWeight: 600, color: "#34d399" }}>
-                    <Rocket style={{ width: "11px", height: "11px" }} /> 현재 단계
-                  </div>
-                  <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2rem)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: "6px" }}>시험 운영 (피드백)</h2>
-                  <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)" }}>고객 피드백으로 완성해요</p>
-                </div>
-
-                {plan ? (
-                  <div className="flex flex-col gap-4 mb-4">
-                    {plan.phases.map((phase, i) => (
-                      <div key={i} style={{ background: i === 0 ? "rgba(16,185,129,0.07)" : "rgba(255,255,255,0.04)", border: i === 0 ? "1.5px solid rgba(16,185,129,0.25)" : "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px" }}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "rgba(16,185,129,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.72rem", fontWeight: 800, color: "#34d399", flexShrink: 0 }}>{i + 1}</div>
-                          <div>
-                            <span style={{ fontSize: "0.65rem", color: "#34d399", fontWeight: 700 }}>{phase.period}</span>
-                            <p style={{ fontSize: "0.9rem", fontWeight: 800, color: "white" }}>{phase.name}</p>
-                          </div>
-                        </div>
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          <div>
-                            <p style={{ fontSize: "0.7rem", fontWeight: 700, color: "rgba(255,255,255,0.35)", marginBottom: "6px" }}>목표</p>
-                            {phase.goals.map((g, j) => <p key={j} className="flex items-start gap-1.5 mb-1" style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.65)" }}><span style={{ marginTop: "5px", width: "4px", height: "4px", borderRadius: "50%", background: "#10b981", flexShrink: 0 }} />{g}</p>)}
-                          </div>
-                          <div>
-                            <p style={{ fontSize: "0.7rem", fontWeight: 700, color: "rgba(255,255,255,0.35)", marginBottom: "6px" }}>KPI 목표치</p>
-                            {phase.kpis.map((k, j) => (
-                              <div key={j} className="flex items-center justify-between mb-1.5" style={{ background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "5px 10px" }}>
-                                <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.5)" }}>{k.metric}</span>
-                                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#34d399" }}>{k.target}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "18px" }}>
-                        <p style={{ fontSize: "0.82rem", fontWeight: 700, color: "white", marginBottom: "10px" }}>📣 피드백 수집 채널</p>
-                        {plan.feedbackChannels.map((ch, i) => <p key={i} className="flex items-start gap-2 mb-2" style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)" }}><span style={{ fontWeight: 700, color: "#34d399" }}>·</span>{ch}</p>)}
-                      </div>
-                      <div style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.2)", borderRadius: "16px", padding: "18px" }}>
-                        <p style={{ fontSize: "0.82rem", fontWeight: 700, color: "#f97316", marginBottom: "10px" }}>⚠ 철수·재검토 경고 신호</p>
-                        {plan.warningSignals.map((w, i) => <p key={i} className="flex items-start gap-2 mb-2" style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)" }}><span style={{ fontWeight: 700, color: "#f97316" }}>{i + 1}.</span>{w}</p>)}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: "16px", padding: "40px", textAlign: "center" }}>
-                    <p style={{ color: "rgba(255,255,255,0.25)" }}>AI 분석 결과를 불러오는 중입니다.</p>
-                  </div>
-                )}
               </>
             );
           })()}

@@ -5,7 +5,7 @@ import { NewResultReport } from "./NewResultReport";
 import { ExistingResultReport } from "./ExistingResultReport";
 import { DetailedStartupQuestionnaire } from "./DetailedStartupQuestionnaire";
 import { analyzeStartup, type AiAnalysisResult } from "../utils/openai";
-import { fetchSbizStores, fetchCommercialContext, type SbizStoreData, type CommercialContext } from "../utils/budongsan";
+import { fetchSbizStores, fetchCommercialContext, fetchRoneRentData, type SbizStoreData, type CommercialContext, type RoneRentContext } from "../utils/budongsan";
 
 /* ─────────────────────────────────────────
    데이터 정의
@@ -1065,6 +1065,7 @@ export function AIAnalysisPage() {
     const [aiError, setAiError] = useState(false);
     const [sbizData, setSbizData] = useState<SbizStoreData | null>(null);
     const [commercialCtx, setCommercialCtx] = useState<CommercialContext | null>(null);
+    const [roneData, setRoneData] = useState<RoneRentContext | null>(null);
 
     const deepDataFields = useMemo(() => {
         const map = new Map<keyof PosMetrics, { key: keyof PosMetrics; label: string }>();
@@ -1129,13 +1130,15 @@ export function AIAnalysisPage() {
 
         const apiCall = userType === "new"
             ? (async () => {
-                const [sbiz, commercial] = await Promise.all([
+                const [sbiz, commercial, rone] = await Promise.all([
                     fetchSbizStores(regionText, bizType).catch(() => null),
                     fetchCommercialContext(regionText).catch(() => null),
+                    fetchRoneRentData(regionText).catch(() => null),
                 ]);
                 if (!cancelled) {
                     if (sbiz) setSbizData(sbiz);
                     if (commercial) setCommercialCtx(commercial);
+                    if (rone) setRoneData(rone);
                 }
                 await analyzeStartup(answers, sbiz, commercial)
                     .then(r => { if (!cancelled) setAiResult(r); })
@@ -1327,7 +1330,7 @@ export function AIAnalysisPage() {
             />
         );
     if (flow === "result")
-        return <NewResultReport answers={answers} aiResult={aiResult} aiError={aiError} sbizData={sbizData} commercialCtx={commercialCtx} onReset={handleReset} onSwitchToExisting={handleSwitchToExisting} />;
+        return <NewResultReport answers={answers} aiResult={aiResult} aiError={aiError} sbizData={sbizData} commercialCtx={commercialCtx} roneData={roneData} onReset={handleReset} onSwitchToExisting={handleSwitchToExisting} />;
 
     /* ── 창업 전 주의사항 (신생 창업자 진입) ── */
     if (flow === "warningNew") return (
