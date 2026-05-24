@@ -19,4 +19,21 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  server: {
+    proxy: {
+      // R-ONE API: CORS 우회 프록시
+      '/proxy/r-one': {
+        target: 'https://www.reb.or.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/r-one/, '/r-one'),
+      },
+      // 중소벤처24 bizinfo.go.kr RSS: CORS 우회 프록시
+      '/proxy/bizinfo': {
+        target: 'https://www.bizinfo.go.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/bizinfo/, ''),
+      },
+    },
+  },
 })

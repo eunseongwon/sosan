@@ -1,6 +1,7 @@
-const SERVICE_KEY  = import.meta.env.VITE_MOLIT_API_KEY as string;
-const SBIZ_KEY     = import.meta.env.VITE_SBIZ_API_KEY  as string;
-const RONE_KEY     = import.meta.env.VITE_RONE_API_KEY  as string;
+const SERVICE_KEY    = import.meta.env.VITE_MOLIT_API_KEY    as string;
+const SBIZ_KEY       = import.meta.env.VITE_SBIZ_API_KEY     as string;
+const RONE_KEY       = import.meta.env.VITE_RONE_API_KEY     as string;
+const BIZINFO_KEY    = import.meta.env.VITE_BIZINFO_API_KEY  as string;
 
 /* ── 시도+시군구 조합 → 5자리 법정동 코드 ── */
 const SIGUNGU_CODE_MAP: Record<string, string> = {
@@ -403,7 +404,7 @@ async function fetchRoneTable(statblId: string, period: string): Promise<any[] |
   });
   try {
     const res = await fetch(
-      `https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?${params}`,
+      `/proxy/r-one/openapi/SttsApiTblData.do?${params}`,
       { signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return null;
@@ -484,4 +485,82 @@ export async function fetchRoneRentData(
     items: results,
     source: "한국부동산원 R-ONE 상업용부동산 임대동향조사",
   };
+}
+
+/* ── 중소벤처24 정부 지원사업 공고 ── */
+export interface BizinfoItem {
+  pblancId: string;       // 공고 ID
+  pblancNm: string;       // 공고명
+  bizAreaNm: string;      // 지원 분야 (창업, 융자, 기술개발 등)
+  supportType: string;    // 지원 유형 (보조금, 융자 등)
+  period: string;         // 접수 기간
+  institution: string;    // 주관 기관
+  target: string;         // 지원 대상
+  detailUrl: string;      // 상세 링크
+}
+
+export interface BizinfoContext {
+  totalCount: number;
+  items: BizinfoItem[];
+}
+
+/* 업종 → 검색 키워드 매핑 */
+function getBizKeyword(bizType: string): string {
+  if (bizType.includes("카페") || bizType.includes("음료")) return "카페";
+  if (bizType.includes("음식") || bizType.includes("식당") || bizType.includes("한식") || bizType.includes("외식")) return "외식";
+  if (bizType.includes("디저트") || bizType.includes("베이커리")) return "베이커리";
+  if (bizType.includes("소매") || bizType.includes("편의점")) return "소매";
+  return "소상공인";
+}
+
+export async function fetchBizinfoSupport(
+  _bizType = "",
+): Promise<BizinfoContext | null> {
+  // bizinfo.go.kr는 포털에서 별도 키 신청 필요
+  // smes.go.kr는 서버 IP 차단으로 브라우저 직접 호출 불가
+  // 키 확보 후 아래 주석 해제하여 사용
+  return null;
+}
+
+function parseBizinfoItems(rawItems: any[], keyword: string, totalCount: number): BizinfoContext {
+  // 업종 키워드 관련 항목 우선 정렬, 나머지는 창업·소상공인 우선
+  const priority = (item: any) => {
+    const nm: string = (item.pblancNm ?? item.pblanc_nm ?? item.title ?? item.사업명 ?? "").toLowerCase();
+    const area: string = (item.excInsttNm ?? item.bsnsSopcBizAreaNm ?? item.bizAreaNm ?? "").toLowerCase();
+    const combined = nm + area;
+    if (combined.includes(keyword)) return 0;
+    if (combined.includes("소상공인") || combined.includes("창업")) return 1;
+    if (combined.includes("중소기업")) return 2;
+    return 3;
+  };
+
+  const sorted = [...rawItems].sort((a, b) => priority(a) - priority(b));
+
+  const items: BizinfoItem[] = sorted.slice(0, 6).map((r: any) => {
+    // smes.go.kr 응답 필드명 우선, 기존 bizinfo.go.kr 필드 폴백
+    const id   = r.pblancId ?? r.pblanc_id ?? r.id ?? "";
+    const name = r.pblancNm ?? r.pblanc_nm ?? r.title ?? r.사업명 ?? "지원사업";
+    const area = r.excInsttNm ?? r.bsnsSopcBizAreaNm ?? r.bizAreaNm ?? r.분야 ?? "";
+    const inst = r.jrsdInsttNm ?? r.mngtInstNm ?? r.institution ?? r.주관기관 ?? "";
+    const rcpt = r.rcptEndDe
+      ? `~ ${r.rcptEndDe}`
+      : r.reqstBeginEndDe ?? r.rcptBgnDe
+      ? `${r.rcptBgnDe ?? ""} ~ ${r.rcptEndDe ?? ""}`
+      : "";
+    const link = r.detailUrl ?? r.url
+      ?? `https://www.smes.go.kr/fnct/pblancInfo/selectPblancInfo?pblancId=${id}`;
+
+    return {
+      pblancId:    id,
+      pblancNm:    name,
+      bizAreaNm:   area,
+      supportType: r.sprtSe ?? r.bsnsSopcBizSpprtSe ?? "",
+      period:      rcpt,
+      institution: inst,
+      target:      r.sprtTrgt ?? r.sprtTrgtNm ?? "",
+      detailUrl:   link,
+    };
+  });
+
+  return { totalCount, items };
 }

@@ -6,7 +6,7 @@ import {
   LayoutGrid, FileText, Circle,
 } from "lucide-react";
 import type { AiAnalysisResult } from "../utils/openai";
-import type { SbizStoreData, CommercialContext, RoneRentContext } from "../utils/budongsan";
+import type { SbizStoreData, CommercialContext, RoneRentContext, BizinfoContext } from "../utils/budongsan";
 
 /* ── 공통 헤더 ── */
 function ReportHeader({ onReset }: { onReset: () => void }) {
@@ -96,7 +96,7 @@ const RISK_BG: Record<string, string>    = { "높음": "rgba(239,68,68,0.1)", "�
    신생 창업자 리포트 (메인 export)
 ───────────────────────────────────────── */
 export function NewResultReport({
-  answers, aiResult, aiError, sbizData, commercialCtx, roneData, onReset, onSwitchToExisting,
+  answers, aiResult, aiError, sbizData, commercialCtx, roneData, bizinfoData, onReset, onSwitchToExisting,
 }: {
   answers: Record<string, string | string[]>;
   aiResult: AiAnalysisResult | null;
@@ -104,6 +104,7 @@ export function NewResultReport({
   sbizData: SbizStoreData | null;
   commercialCtx: CommercialContext | null;
   roneData: RoneRentContext | null;
+  bizinfoData: BizinfoContext | null;
   onReset: () => void;
   onSwitchToExisting?: () => void;
 }) {
@@ -124,6 +125,7 @@ export function NewResultReport({
           sbizData={sbizData}
           commercialCtx={commercialCtx}
           roneData={roneData}
+          bizinfoData={bizinfoData}
           onSwitchToExisting={onSwitchToExisting}
         />
         <ReportFooter />
@@ -146,13 +148,14 @@ const STAGES = [
 ];
 
 function LocationAnalysisSection({
-  answers, aiResult, sbizData, commercialCtx, roneData, onSwitchToExisting,
+  answers, aiResult, sbizData, commercialCtx, roneData, bizinfoData, onSwitchToExisting,
 }: {
   answers: Record<string, string | string[]>;
   aiResult: AiAnalysisResult | null;
   sbizData: SbizStoreData | null;
   commercialCtx: CommercialContext | null;
   roneData: RoneRentContext | null;
+  bizinfoData: BizinfoContext | null;
   onSwitchToExisting?: () => void;
 }) {
   const [currentStep, setCurrentStep] = useState(2);
@@ -251,7 +254,8 @@ function LocationAnalysisSection({
                 <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)" }}>창업 자금을 어떻게 마련할지 계획해요</p>
               </div>
 
-              <div className="flex flex-col gap-3 mb-4">
+              {/* AI 자금 조달 비교 */}
+              <div className="flex flex-col gap-3 mb-6">
                 {(aiResult?.fundingComparison ?? []).map((f, i) => (
                   <div key={i} style={{ background: f.recommended ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.04)", border: f.recommended ? "1.5px solid rgba(16,185,129,0.35)" : "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "18px 20px" }}>
                     <div className="flex items-start justify-between gap-3 mb-2">
@@ -269,6 +273,57 @@ function LocationAnalysisSection({
                   </div>
                 ))}
               </div>
+
+              {/* 중소벤처24 정부 지원사업 공고 */}
+              {bizinfoData && bizinfoData.items.length > 0 && (
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px", marginBottom: "24px" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p style={{ fontSize: "0.9rem", fontWeight: 700, color: "white", marginBottom: "2px" }}>현재 접수 중인 정부 지원사업</p>
+                      <p style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.35)" }}>중소벤처24 · 총 {bizinfoData.totalCount.toLocaleString()}개 공고 중 업종 관련 상위</p>
+                    </div>
+                    <a
+                      href="https://www.bizinfo.go.kr"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: "0.7rem", color: "#34d399", textDecoration: "none", padding: "4px 10px", borderRadius: "8px", border: "1px solid rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.08)", flexShrink: 0 }}
+                    >
+                      전체보기 →
+                    </a>
+                  </div>
+                  <div className="flex flex-col gap-0">
+                    {bizinfoData.items.map((item, i) => (
+                      <a
+                        key={item.pblancId || i}
+                        href={item.detailUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start justify-between py-3 group"
+                        style={{ borderBottom: i < bizinfoData.items.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none", textDecoration: "none" }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0, paddingRight: "12px" }}>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            {item.bizAreaNm && (
+                              <span style={{ fontSize: "0.62rem", padding: "1px 6px", borderRadius: "99px", background: "rgba(16,185,129,0.12)", color: "#34d399", border: "1px solid rgba(16,185,129,0.2)", flexShrink: 0 }}>
+                                {item.bizAreaNm}
+                              </span>
+                            )}
+                            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "rgba(255,255,255,0.9)" }}
+                              className="group-hover:text-white transition-colors">
+                              {item.pblancNm}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                            {item.institution && <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.4)" }}>{item.institution}</p>}
+                            {item.period && <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.3)" }}>접수 {item.period}</p>}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: "0.7rem", color: "#34d399", flexShrink: 0, marginTop: "2px" }}>신청 →</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ marginBottom: "24px" }} />
             </>
           )}
