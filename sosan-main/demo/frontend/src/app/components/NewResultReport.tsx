@@ -96,15 +96,15 @@ const RISK_BG: Record<string, string>    = { "높음": "rgba(239,68,68,0.1)", "�
    신생 창업자 리포트 (메인 export)
 ───────────────────────────────────────── */
 export function NewResultReport({
-  answers, aiResult, aiError, sbizData, commercialCtx, roneData, bizinfoData, onReset, onSwitchToExisting,
+  answers, aiResult = null, aiError = false, sbizData = null, commercialCtx = null, roneData = null, bizinfoData = null, onReset, onSwitchToExisting,
 }: {
   answers: Record<string, string | string[]>;
-  aiResult: AiAnalysisResult | null;
-  aiError: boolean;
-  sbizData: SbizStoreData | null;
-  commercialCtx: CommercialContext | null;
-  roneData: RoneRentContext | null;
-  bizinfoData: BizinfoContext | null;
+  aiResult?: AiAnalysisResult | null;
+  aiError?: boolean;
+  sbizData?: SbizStoreData | null;
+  commercialCtx?: CommercialContext | null;
+  roneData?: RoneRentContext | null;
+  bizinfoData?: BizinfoContext | null;
   onReset: () => void;
   onSwitchToExisting?: () => void;
 }) {
@@ -148,14 +148,14 @@ const STAGES = [
 ];
 
 function LocationAnalysisSection({
-  answers, aiResult, sbizData, commercialCtx, roneData, bizinfoData, onSwitchToExisting,
+  answers, aiResult = null, sbizData = null, commercialCtx = null, roneData = null, bizinfoData = null, onSwitchToExisting,
 }: {
   answers: Record<string, string | string[]>;
-  aiResult: AiAnalysisResult | null;
-  sbizData: SbizStoreData | null;
-  commercialCtx: CommercialContext | null;
-  roneData: RoneRentContext | null;
-  bizinfoData: BizinfoContext | null;
+  aiResult?: AiAnalysisResult | null;
+  sbizData?: SbizStoreData | null;
+  commercialCtx?: CommercialContext | null;
+  roneData?: RoneRentContext | null;
+  bizinfoData?: BizinfoContext | null;
   onSwitchToExisting?: () => void;
 }) {
   const [currentStep, setCurrentStep] = useState(2);

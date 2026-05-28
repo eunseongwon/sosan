@@ -32,6 +32,29 @@ type SupportItem = {
 type QaItem = {
   question: string;
   answer: string;
+  score: number;
+};
+
+type AnalysisMode = "light" | "deep";
+
+type PosMetrics = {
+  monthlyRevenue: string;
+  monthlyOrders: string;
+  averageTicket: string;
+  peakSalesShare: string;
+  dineInShare: string;
+  deliveryShare: string;
+  takeoutShare: string;
+  topMenuShare: string;
+  adBudget?: string;
+  conversionRate?: string;
+  repeatCustomerRate?: string;
+  reviewAverageScore?: string;
+  negativeReviewRatio?: string;
+  competitorPriceGap?: string;
+  bundleOrderRatio?: string;
+  laborCost?: string;
+  tableTurnoverRate?: string;
 };
 
 type StageFrameProps = {
@@ -43,54 +66,62 @@ type StageFrameProps = {
 };
 
 const StageFrame = ({
-                      children,
-                      showPrev = false,
-                      showNext = false,
-                      onPrev,
-                      onNext,
-                    }: StageFrameProps) => {
+  children,
+  showPrev = false,
+  showNext = false,
+  onPrev,
+  onNext,
+}: StageFrameProps) => {
   return (
-      <div className="relative flex items-center justify-center">
-        {showPrev && onPrev && (
-            <button
-                onClick={onPrev}
-                className="absolute -left-20 lg:-left-24 top-1/2 -translate-y-1/2 w-14 h-14
+    <div className="relative flex items-center justify-center">
+      {showPrev && onPrev && (
+        <button
+          onClick={onPrev}
+          className="absolute -left-20 lg:-left-24 top-1/2 -translate-y-1/2 w-14 h-14
                      bg-white/5 border border-white/10 rounded-full hidden lg:flex
                      items-center justify-center text-zinc-400
                      hover:text-white hover:bg-emerald-500/20
                      hover:border-emerald-500/50 transition-all z-20 shadow-xl"
-            >
-              <ChevronLeft className="w-8 h-8 mr-1" />
-            </button>
-        )}
+        >
+          <ChevronLeft className="w-8 h-8 mr-1" />
+        </button>
+      )}
 
-        <div className="w-full">{children}</div>
+      <div className="w-full">{children}</div>
 
-        {showNext && onNext && (
-            <button
-                onClick={onNext}
-                className="absolute -right-20 lg:-right-24 top-1/2 -translate-y-1/2 w-14 h-14
+      {showNext && onNext && (
+        <button
+          onClick={onNext}
+          className="absolute -right-20 lg:-right-24 top-1/2 -translate-y-1/2 w-14 h-14
                      bg-white/5 border border-white/10 rounded-full hidden lg:flex
                      items-center justify-center text-zinc-400
                      hover:text-white hover:bg-emerald-500/20
                      hover:border-emerald-500/50 transition-all z-20 shadow-xl"
-            >
-              <ChevronRight className="w-8 h-8 ml-1" />
-            </button>
-        )}
-      </div>
+        >
+          <ChevronRight className="w-8 h-8 ml-1" />
+        </button>
+      )}
+    </div>
   );
 };
 // 오각형 레이더 차트 컴포넌트
 function QaRadarChart({
-                        items,
-                        setTooltip,
-                      }: {
+  items,
+  setTooltip,
+}: {
   items: QaItem[];
   setTooltip: any;
 }) {
+  const fallbackItems: QaItem[] = [
+    { question: "질문 데이터 준비중", answer: "응답 데이터 준비중", score: 50 },
+    { question: "질문 데이터 준비중", answer: "응답 데이터 준비중", score: 50 },
+    { question: "질문 데이터 준비중", answer: "응답 데이터 준비중", score: 50 },
+    { question: "질문 데이터 준비중", answer: "응답 데이터 준비중", score: 50 },
+    { question: "질문 데이터 준비중", answer: "응답 데이터 준비중", score: 50 },
+  ];
+  const sourceItems = items.length > 0 ? items : fallbackItems;
   const displayItems = Array.from({ length: 5 }).map(
-      (_, i) => items[i % items.length],
+    (_, i) => sourceItems[i % sourceItems.length],
   );
 
   const size = 340;
@@ -110,101 +141,103 @@ function QaRadarChart({
 
   // 각 꼭짓점별 시각적 점수 (그래프의 불규칙한 모양을 형성)
   const getScoreRadius = (idx: number) => {
-    const scores = [0.9, 0.65, 0.85, 0.7, 0.8];
-    return maxRadius * scores[idx];
+    const rawScore = displayItems[idx]?.score ?? 50;
+    const normalized = Math.max(0, Math.min(100, rawScore)) / 100;
+    const scale = 0.35 + normalized * 0.65;
+    return maxRadius * scale;
   };
 
   const dataPoints = displayItems.map((_, i) => getPoint(i, getScoreRadius(i)));
   const dataPolygon = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
 
   return (
-      <div className="flex justify-center py-4 w-full">
-        <div className="relative" style={{ width: size, height: size }}>
-          <svg width={size} height={size} className="overflow-visible">
-            {/* 거미줄 배경 다각형 */}
-            {levels.map((level, lvlIdx) => {
-              const pts = Array.from({ length: 5 }).map((_, i) =>
-                  getPoint(i, maxRadius * level),
-              );
-              return (
-                  <polygon
-                      key={lvlIdx}
-                      points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
-                      fill="none"
-                      stroke="#3f3f46"
-                      strokeWidth="1"
-                  />
-              );
-            })}
-            {/* 중심에서 꼭짓점으로 뻗어나가는 선 */}
-            {Array.from({ length: 5 }).map((_, i) => {
-              const end = getPoint(i, maxRadius);
-              return (
-                  <line
-                      key={i}
-                      x1={center}
-                      y1={center}
-                      x2={end.x}
-                      y2={end.y}
-                      stroke="#3f3f46"
-                      strokeWidth="1"
-                  />
-              );
-            })}
+    <div className="flex justify-center py-4 w-full">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="overflow-visible">
+          {/* 거미줄 배경 다각형 */}
+          {levels.map((level, lvlIdx) => {
+            const pts = Array.from({ length: 5 }).map((_, i) =>
+              getPoint(i, maxRadius * level),
+            );
+            return (
+              <polygon
+                key={lvlIdx}
+                points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill="none"
+                stroke="#3f3f46"
+                strokeWidth="1"
+              />
+            );
+          })}
+          {/* 중심에서 꼭짓점으로 뻗어나가는 선 */}
+          {Array.from({ length: 5 }).map((_, i) => {
+            const end = getPoint(i, maxRadius);
+            return (
+              <line
+                key={i}
+                x1={center}
+                y1={center}
+                x2={end.x}
+                y2={end.y}
+                stroke="#3f3f46"
+                strokeWidth="1"
+              />
+            );
+          })}
 
-            {/* 데이터 영역 다각형 */}
-            <polygon
-                points={dataPolygon}
-                fill="rgba(52, 211, 153, 0.15)"
-                stroke="#34d399"
-                strokeWidth="2"
-            />
+          {/* 데이터 영역 다각형 */}
+          <polygon
+            points={dataPolygon}
+            fill="rgba(52, 211, 153, 0.15)"
+            stroke="#34d399"
+            strokeWidth="2"
+          />
 
-            {/* 정중앙 점 */}
-            <circle cx={center} cy={center} r="3" fill="#34d399" opacity="0.6" />
+          {/* 정중앙 점 */}
+          <circle cx={center} cy={center} r="3" fill="#34d399" opacity="0.6" />
 
-            {/* 각 꼭짓점 점 */}
-            {dataPoints.map((p, i) => (
-                <g
-                    key={i}
-                    onMouseEnter={(e) => {
-                      setTooltip({
-                        visible: true,
-                        x: e.clientX,
-                        y: e.clientY,
-                        type: "qa", // 2줄짜리 QA 스타일 적용
-                        title: `질문: ${displayItems[i].question}`,
-                        text: `응답: ${displayItems[i].answer}`,
-                      });
-                    }}
-                    onMouseMove={(e) => {
-                      setTooltip((prev: any) => ({
-                        ...prev,
-                        x: e.clientX,
-                        y: e.clientY,
-                      }));
-                    }}
-                    onMouseLeave={() => {
-                      setTooltip((prev: any) => ({ ...prev, visible: false }));
-                    }}
-                    className="cursor-pointer transition-all hover:scale-125"
-                    style={{ transformOrigin: `${p.x}px ${p.y}px` }}
-                >
-                  <circle cx={p.x} cy={p.y} r="4" fill="#ffffff" />
-                  <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
-                </g>
-            ))}
-          </svg>
-        </div>
+          {/* 각 꼭짓점 점 */}
+          {dataPoints.map((p, i) => (
+            <g
+              key={i}
+              onMouseEnter={(e) => {
+                setTooltip({
+                  visible: true,
+                  x: e.clientX,
+                  y: e.clientY,
+                  type: "qa", // 2줄짜리 QA 스타일 적용
+                  title: `질문: ${displayItems[i].question}`,
+                  text: `응답: ${displayItems[i].answer} (${displayItems[i].score}점)`,
+                });
+              }}
+              onMouseMove={(e) => {
+                setTooltip((prev: any) => ({
+                  ...prev,
+                  x: e.clientX,
+                  y: e.clientY,
+                }));
+              }}
+              onMouseLeave={() => {
+                setTooltip((prev: any) => ({ ...prev, visible: false }));
+              }}
+              className="cursor-pointer transition-all hover:scale-125"
+              style={{ transformOrigin: `${p.x}px ${p.y}px` }}
+            >
+              <circle cx={p.x} cy={p.y} r="4" fill="#ffffff" />
+              <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+            </g>
+          ))}
+        </svg>
       </div>
+    </div>
   );
 }
 
 function HugeGradeGauge({
-                          score,
-                          topStrengths,
-                          topWeakness,
-                        }: {
+  score,
+  topStrengths,
+  topWeakness,
+}: {
   score: number;
   topStrengths: { label: string; value: number }[];
   topWeakness?: { label: string; value: number };
@@ -226,67 +259,67 @@ function HugeGradeGauge({
   else if (score >= 70) grade = "B";
 
   return (
-      <div
-          className="relative flex flex-col items-center justify-center z-10"
-          style={{ width: 320, height: 320 }}
+    <div
+      className="relative flex flex-col items-center justify-center z-10"
+      style={{ width: 320, height: 320 }}
+    >
+      <svg
+        width="320"
+        height="320"
+        viewBox="0 0 320 320"
+        className="transform -rotate-90 drop-shadow-2xl"
       >
-        <svg
-            width="320"
-            height="320"
-            viewBox="0 0 320 320"
-            className="transform -rotate-90 drop-shadow-2xl"
-        >
-          <circle
-              cx="160"
-              cy="160"
-              r={r}
-              fill="none"
-              stroke="#27272a"
-              strokeWidth="6"
-          />
-          <circle
-              cx="160"
-              cy="160"
-              r={r}
-              fill="none"
-              stroke="#34d399"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={circ}
-              strokeDashoffset={offset}
-              style={{ transition: "stroke-dashoffset 2s ease-out" }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pt-6">
+        <circle
+          cx="160"
+          cy="160"
+          r={r}
+          fill="none"
+          stroke="#27272a"
+          strokeWidth="6"
+        />
+        <circle
+          cx="160"
+          cy="160"
+          r={r}
+          fill="none"
+          stroke="#34d399"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 2s ease-out" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center pt-6">
         <span className="text-7xl font-black text-emerald-400 leading-none mb-3 drop-shadow-lg">
           {grade}
         </span>
-          <div className="flex flex-col items-center gap-1.5 mb-4">
-            {topStrengths.map((s) => (
-                <span
-                    key={s.label}
-                    className="text-emerald-300 text-sm font-bold tracking-wide"
-                >
+        <div className="flex flex-col items-center gap-1.5 mb-4">
+          {topStrengths.map((s) => (
+            <span
+              key={s.label}
+              className="text-emerald-300 text-sm font-bold tracking-wide"
+            >
               {s.label} +{s.value}
             </span>
-            ))}
-            {/* 스케치에 있던 빨간색 글씨 (단점/약점) 반영 */}
-            {topWeakness && (
-                <span className="text-red-400 text-sm font-bold tracking-wide mt-0.5">
+          ))}
+          {/* 스케치에 있던 빨간색 글씨 (단점/약점) 반영 */}
+          {topWeakness && (
+            <span className="text-red-400 text-sm font-bold tracking-wide mt-0.5">
               단점({topWeakness.label}) -{Math.max(0, 100 - topWeakness.value)}
             </span>
-            )}
-          </div>
-          <span className="text-white font-bold text-xl">{score}점</span>
+          )}
         </div>
+        <span className="text-white font-bold text-xl">{score}점</span>
       </div>
+    </div>
   );
 }
 
 function TypewriterText({
-                          text,
-                          speed = 28,
-                        }: {
+  text,
+  speed = 28,
+}: {
   text: string;
   speed?: number;
 }) {
@@ -307,22 +340,27 @@ function TypewriterText({
   }, [text, speed]);
 
   return (
-      <>
-        {displayedText}
-        <span className="animate-pulse inline-block w-[2px] h-[1em] bg-emerald-400 align-middle ml-1" />
-      </>
+    <>
+      {displayedText}
+      <span className="animate-pulse inline-block w-[2px] h-[1em] bg-emerald-400 align-middle ml-1" />
+    </>
   );
 }
 
 function buildAiData(
-    challenge: string,
-    storeSize: string,
-    operationScore: number,
+  challenge: string,
+  storeSize: string,
+  operationScore: number,
+  analysisMode: AnalysisMode,
+  posMetrics?: PosMetrics,
 ): AiData {
+  const deepHint =
+    analysisMode === "deep"
+      ? ` POS 기반 지표(월매출 ${posMetrics?.monthlyRevenue || "-"}, 객단가 ${posMetrics?.averageTicket || "-"})를 반영해 우선순위를 계산했습니다.`
+      : "";
   if (challenge.includes("마케팅")) {
     return {
-      summary:
-          "고객 유입은 발생하지만 재방문 전환이 약해 매출 성장이 둔화된 상태입니다. 마케팅 메시지와 리뷰 관리 흐름을 함께 개선하시면 효율이 빠르게 올라갑니다.",
+      summary: `고객 유입은 발생하지만 재방문 전환이 약해 매출 성장이 둔화된 상태입니다. 마케팅 메시지와 리뷰 관리 흐름을 함께 개선하시면 효율이 빠르게 올라갑니다.${deepHint}`,
       actions: [
         "주 2회 고정 콘텐츠와 리뷰 응답 루틴을 운영해 고객 반응을 꾸준히 쌓아주세요.",
         "피크 시간대 한정 프로모션을 진행해 광고 비용 대비 전환율을 높이세요.",
@@ -333,39 +371,54 @@ function buildAiData(
 
   if (challenge.includes("인건비") || challenge.includes("재료비")) {
     return {
-      summary:
-          "현재 문제는 매출보다 비용 구조의 비효율에서 크게 발생하고 있습니다. 피크 인력 배치와 메뉴 원가 점검을 동시에 진행하시면 수익성이 안정됩니다.",
+      summary: `현재 문제는 매출보다 비용 구조의 비효율에서 크게 발생하고 있습니다. 피크 인력 배치와 메뉴 원가 점검을 동시에 진행하시면 수익성이 안정됩니다.${deepHint}`,
       actions: [
         "시간대별 인력 투입표를 재정리해 불필요한 공백/과투입 시간을 줄이세요.",
         "판매량 대비 원가율이 높은 메뉴를 우선 점검해 마진 구조를 개선하세요.",
       ],
       detailed:
-          "비용 관리 이슈가 있는 경우에는 매출 확대보다 누수 구간을 먼저 줄이는 전략이 안전합니다. 특히 인건비와 원가가 동시에 흔들릴 때는 운영 안정성이 빠르게 낮아질 수 있습니다. 근무표와 발주 주기를 함께 설계하시면 효과가 큽니다. 월간 손익표에서 상위 판매 메뉴의 마진율을 우선 분석해 작은 조정부터 진행해 보세요.",
+        "비용 관리 이슈가 있는 경우에는 매출 확대보다 누수 구간을 먼저 줄이는 전략이 안전합니다. 특히 인건비와 원가가 동시에 흔들릴 때는 운영 안정성이 빠르게 낮아질 수 있습니다. 근무표와 발주 주기를 함께 설계하시면 효과가 큽니다. 월간 손익표에서 상위 판매 메뉴의 마진율을 우선 분석해 작은 조정부터 진행해 보세요.",
     };
   }
 
   return {
-    summary:
-        "운영 데이터상 매출과 고객 유지의 균형이 다소 약한 구간이 있습니다. 핵심 지표를 좁혀 관리하시면 안정적인 성장 패턴으로 전환할 수 있습니다.",
+    summary: `운영 데이터상 매출과 고객 유지의 균형이 다소 약한 구간이 있습니다. 핵심 지표를 좁혀 관리하시면 안정적인 성장 패턴으로 전환할 수 있습니다.${deepHint}`,
     actions: [
       "주간 단위로 신규/재방문/리뷰 지표를 한 화면에서 관리하세요.",
       "상위 성과 메뉴 중심으로 프로모션을 재구성해 집중도를 높이세요.",
     ],
     detailed:
-        "실행 우선순위를 명확히 정하는 것이 중요합니다. 먼저 매출, 재방문, 평판 세 축 중 가장 낮은 항목부터 개선해 보세요. 실행 과제는 많기보다 지속 가능한 루틴으로 설계될 때 성과가 납니다.",
+      "실행 우선순위를 명확히 정하는 것이 중요합니다. 먼저 매출, 재방문, 평판 세 축 중 가장 낮은 항목부터 개선해 보세요. 실행 과제는 많기보다 지속 가능한 루틴으로 설계될 때 성과가 납니다.",
   };
 }
 
-function getCategorySolutions(label: string, score: number): string[] {
+function getCategorySolutions(
+  label: string,
+  score: number,
+  answers?: Record<string, string | string[]>,
+): string[] {
+  const isDeep = (answers?.analysisMode as string) === "deep";
   const low = score < 65;
   const mid = score >= 65 && score < 80;
 
   if (label === "매출 성과") {
+    const deepRevenue = Number((answers?.monthlyRevenue as string) || 0);
+    const deepTopMenuShare = Number((answers?.topMenuShare as string) || 0);
     if (low)
       return [
         "주간 매출/객단가/방문수 3지표를 고정 추적하세요.",
         "저성과 시간대 한정 프로모션을 운영하세요.",
         "상위 메뉴 집중 판매 전략으로 회전율을 높이세요.",
+        ...(deepTopMenuShare >= 55
+          ? [
+              "상위 메뉴 의존도가 높으니 2~3순위 메뉴 객단가 개선 실험을 병행하세요.",
+            ]
+          : []),
+        ...(isDeep
+          ? [
+              "POS 시간대 로그를 기준으로 비피크 번들 전략을 2주 단위로 실험하세요.",
+            ]
+          : []),
       ];
     if (mid)
       return [
@@ -377,15 +430,32 @@ function getCategorySolutions(label: string, score: number): string[] {
       "현재 성과 지표를 유지하면서 변동성만 관리하세요.",
       "고마진 메뉴의 노출 비중을 더 높이세요.",
       "월별 목표를 상향하되 비용률도 함께 점검하세요.",
+      ...(deepRevenue > 0
+        ? [
+            `현재 월매출(${deepRevenue.toLocaleString()}원) 기준으로 주간 목표를 역산해 실행하세요.`,
+          ]
+        : []),
+      ...(isDeep
+        ? ["채널별 매출 기여도 분석으로 저효율 프로모션을 축소하세요."]
+        : []),
     ];
   }
 
   if (label === "마케팅 역량") {
+    const conversionRate = Number((answers?.conversionRate as string) || 0);
     if (low)
       return [
         "콘텐츠 발행 요일과 형식을 고정해 운영 루틴을 만드세요.",
         "리뷰 응답 SLA를 정해 24시간 내 대응하세요.",
         "광고는 피크 시간대에만 집중 집행하세요.",
+        ...(conversionRate > 0 && conversionRate < 5
+          ? ["전환율이 낮으므로 랜딩/메뉴 상세 페이지 개선을 먼저 진행하세요."]
+          : []),
+        ...(isDeep
+          ? [
+              "광고비 대비 전환 매출을 캠페인별로 분리 측정해 예산을 재배분하세요.",
+            ]
+          : []),
       ];
     if (mid)
       return [
@@ -405,6 +475,9 @@ function getCategorySolutions(label: string, score: number): string[] {
       "재방문 주기에 맞춘 혜택 간격을 설계하세요.",
       "포인트/스탬프 정책을 단순하게 유지하세요.",
       "단골 고객 전용 공지 채널을 운영하세요.",
+      ...(isDeep
+        ? ["재방문 코호트 분석으로 고객군별 혜택 주기를 차등 적용하세요."]
+        : []),
     ];
   }
 
@@ -413,6 +486,9 @@ function getCategorySolutions(label: string, score: number): string[] {
       "부정 리뷰는 원인/조치/재방문 제안 순서로 답변하세요.",
       "긍정 리뷰에도 감사 응답으로 신뢰를 쌓으세요.",
       "자주 지적되는 불편 요소를 주간 단위로 개선하세요.",
+      ...(isDeep
+        ? ["리뷰 키워드를 유형별로 분류해 반복 이슈를 월 단위로 제거하세요."]
+        : []),
     ];
   }
 
@@ -421,6 +497,11 @@ function getCategorySolutions(label: string, score: number): string[] {
       "핵심 메뉴의 가격-가치 메시지를 선명하게 하세요.",
       "객단가 구간별 세트 구성을 추가하세요.",
       "저마진 메뉴 비중을 단계적으로 줄이세요.",
+      ...(isDeep
+        ? [
+            "경쟁점 대비 가격차를 SKU 단위로 점검해 마진/전환 균형점을 찾으세요.",
+          ]
+        : []),
     ];
   }
 
@@ -428,13 +509,16 @@ function getCategorySolutions(label: string, score: number): string[] {
     "피크 타임 인력 배치를 우선 재설계하세요.",
     "오픈/마감 체크리스트로 누락을 줄이세요.",
     "반복 업무를 표준화해 운영 편차를 낮추세요.",
+    ...(isDeep
+      ? ["시간대별 인건비 생산성을 추적해 탄력 배치 기준을 수치화하세요."]
+      : []),
   ];
 }
 
 function getCategorySupportItems(
-    label: string,
-    region: string,
-    bizType: string,
+  label: string,
+  region: string,
+  bizType: string,
 ): SupportItem[] {
   if (label === "마케팅 역량") {
     return [
@@ -527,78 +611,212 @@ function getCategoryAverageScore(label: string): number {
 }
 
 function getCategoryOneLiner(
-    label: string,
-    value: number,
-    avgScore: number,
+  label: string,
+  value: number,
+  avgScore: number,
 ): string {
   const gap = value - avgScore;
   const trend =
-      gap >= 0
-          ? `평균보다 ${gap}점 높아요`
-          : `평균보다 ${Math.abs(gap)}점 낮아요`;
+    gap >= 0
+      ? `평균보다 ${gap}점 높아요`
+      : `평균보다 ${Math.abs(gap)}점 낮아요`;
 
   if (label === "매출 성과") {
     return gap >= 0
-        ? `매출 흐름은 좋은 편입니다. 지금처럼 핵심 시간대 운영을 유지하면 더 안정적으로 성장할 수 있어요. (${trend})`
-        : `매출은 개선 여지가 큽니다. 피크 시간대 집중 운영과 대표 메뉴 강화부터 시작하면 좋겠습니다. (${trend})`;
+      ? `매출 흐름은 좋은 편입니다. 지금처럼 핵심 시간대 운영을 유지하면 더 안정적으로 성장할 수 있어요. (${trend})`
+      : `매출은 개선 여지가 큽니다. 피크 시간대 집중 운영과 대표 메뉴 강화부터 시작하면 좋겠습니다. (${trend})`;
   }
 
   if (label === "마케팅 역량") {
     return gap >= 0
-        ? `마케팅 감각이 좋은 편이에요. 채널별 메시지 일관성만 유지하면 성과를 더 키울 수 있습니다. (${trend})`
-        : `마케팅은 지금이 전환점입니다. 주간 콘텐츠 루틴만 먼저 잡아도 체감 성과가 달라질 거예요. (${trend})`;
+      ? `마케팅 감각이 좋은 편이에요. 채널별 메시지 일관성만 유지하면 성과를 더 키울 수 있습니다. (${trend})`
+      : `마케팅은 지금이 전환점입니다. 주간 콘텐츠 루틴만 먼저 잡아도 체감 성과가 달라질 거예요. (${trend})`;
   }
 
   if (label === "단골 확보") {
     return gap >= 0
-        ? `단골 기반이 잘 쌓이고 있습니다. 현재 혜택 구조를 유지하면서 재방문 주기를 더 짧게 가져가 보세요. (${trend})`
-        : `단골 전환이 조금 약합니다. 재방문 혜택과 안내 문구를 단순하게 바꾸는 것부터 추천드립니다. (${trend})`;
+      ? `단골 기반이 잘 쌓이고 있습니다. 현재 혜택 구조를 유지하면서 재방문 주기를 더 짧게 가져가 보세요. (${trend})`
+      : `단골 전환이 조금 약합니다. 재방문 혜택과 안내 문구를 단순하게 바꾸는 것부터 추천드립니다. (${trend})`;
   }
 
   if (label === "평판 관리") {
     return gap >= 0
-        ? `고객 평판 관리가 탄탄합니다. 지금처럼 빠른 리뷰 대응을 유지하면 신뢰가 더 쌓입니다. (${trend})`
-        : `리뷰 대응 속도만 올려도 평판은 빠르게 개선됩니다. 우선 답변 원칙부터 정리해 보세요. (${trend})`;
+      ? `고객 평판 관리가 탄탄합니다. 지금처럼 빠른 리뷰 대응을 유지하면 신뢰가 더 쌓입니다. (${trend})`
+      : `리뷰 대응 속도만 올려도 평판은 빠르게 개선됩니다. 우선 답변 원칙부터 정리해 보세요. (${trend})`;
   }
 
   if (label === "가격 경쟁력") {
     return gap >= 0
-        ? `가격 전략이 시장과 잘 맞고 있습니다. 구성 상품만 조금 다듬으면 객단가를 더 높일 수 있어요. (${trend})`
-        : `가격 경쟁력은 재정비가 필요합니다. 고마진 중심으로 메뉴 구조를 재배치하면 효과가 큽니다. (${trend})`;
+      ? `가격 전략이 시장과 잘 맞고 있습니다. 구성 상품만 조금 다듬으면 객단가를 더 높일 수 있어요. (${trend})`
+      : `가격 경쟁력은 재정비가 필요합니다. 고마진 중심으로 메뉴 구조를 재배치하면 효과가 큽니다. (${trend})`;
   }
 
   return gap >= 0
-      ? `운영 효율이 안정적입니다. 현재 표준 운영 방식을 유지하면 피크 타임 대응력이 더 좋아질 거예요. (${trend})`
-      : `운영 효율은 개선 여지가 있습니다. 체크리스트와 인력 배치 최적화부터 시작해 보세요. (${trend})`;
+    ? `운영 효율이 안정적입니다. 현재 표준 운영 방식을 유지하면 피크 타임 대응력이 더 좋아질 거예요. (${trend})`
+    : `운영 효율은 개선 여지가 있습니다. 체크리스트와 인력 배치 최적화부터 시작해 보세요. (${trend})`;
 }
 
 function getAnswerText(
-    answers: Record<string, string | string[]>,
-    key: string,
-    fallback = "미입력",
+  answers: Record<string, string | string[]>,
+  key: string,
+  fallback = "미입력",
 ) {
   const value = answers[key];
   if (Array.isArray(value)) return value.join(", ") || fallback;
   return value || fallback;
 }
 
+function getAnswerScore(
+  answers: Record<string, string | string[]>,
+  key: string,
+  fallback = 50,
+): number {
+  const raw = answers[key];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return fallback;
+
+  const scoreMaps: Record<string, Record<string, number>> = {
+    revenue: {
+      "500만 원 미만": 35,
+      "500만~1,000만 원": 55,
+      "1,000만~2,000만 원": 75,
+      "2,000만 원 이상": 92,
+    },
+    revenueTrend: { 감소: 35, 유지: 65, 증가: 90 },
+    sales: {
+      "매장 판매 중심": 70,
+      "배달 비중이 더 큼": 58,
+      "매장판매와 배달이 균등": 85,
+      "온라인 판매 (스마트스토어 등)": 62,
+    },
+    peak: { 오전: 55, "점심 시간": 72, "저녁 시간": 80, "늦은 밤": 60 },
+    averageOrderTrend: { 감소: 38, 유지: 65, 증가: 88 },
+    marketing: {
+      "거의 하지 않음": 30,
+      "SNS만 운영 (인스타그램, X 등)": 58,
+      "광고 진행 중 (배달앱/네이버 등)": 72,
+      "여러 채널 적극 활용": 90,
+    },
+    promotionFrequency: {
+      "거의 없음": 32,
+      월1회: 55,
+      주1회: 76,
+      "주2회 이상": 90,
+    },
+    adEfficiency: { "잘 모름": 40, 낮음: 48, 보통: 68, 높음: 88 },
+    reviewControl: {
+      "전혀 안함": 30,
+      "부정적 리뷰에만 대응": 50,
+      "긍정적/부정적 리뷰 모두 대응": 75,
+      "적극적으로 리뷰 관리 (리뷰 이벤트 등)": 90,
+    },
+    challenge: {
+      "매출 정체": 52,
+      "마케팅/홍보": 55,
+      "인건비/재료비 관리": 58,
+      "배달/플랫폼 수수료": 56,
+      "직원 관리 문제": 54,
+      "경쟁 심화": 57,
+    },
+    repeat: {
+      "거의 없음 (신규 고객 위주)": 30,
+      "30% 정도": 58,
+      "50% 이상": 80,
+      "단골 중심 매장": 92,
+    },
+    repeatCycle: { "거의 없음": 35, 가끔: 55, 자주: 78, "매우 자주": 90 },
+    customerPool: { 학생: 62, 가족: 78, 혼합: 82, 관광객: 58 },
+    loyaltyProgram: {
+      없음: 32,
+      "준비 중": 55,
+      "운영 중": 75,
+      "정기 캠페인 운영": 90,
+    },
+    revisitReasonClarity: { 불명확: 35, 보통: 60, 명확: 80, "매우 명확": 92 },
+    reviewResponseSpeed: {
+      "48시간 이상": 35,
+      "24~48시간": 55,
+      "12~24시간": 75,
+      "12시간 이내": 92,
+    },
+    complaintResolution: { 미흡: 35, 보통: 60, 신속: 80, "매우 신속": 92 },
+    ratingLevel: {
+      "3.5 미만": 35,
+      "3.5~4.0": 58,
+      "4.0~4.5": 78,
+      "4.5 이상": 92,
+    },
+    csManual: {
+      없음: 35,
+      "기본 가이드 있음": 60,
+      "상황별 매뉴얼 있음": 80,
+      "주기적 업데이트": 92,
+    },
+    menuPrice: {
+      "1만 원 미만 (가성비 중심)": 72,
+      "1만 원 ~ 2만 원 (평균적인 수준)": 84,
+      "2만 원 ~ 4만 원 (프리미엄 지향)": 70,
+      "4만 원 이상 (고급화 전략)": 58,
+    },
+    priceSatisfaction: { 낮음: 38, 보통: 62, 높음: 82, "매우 높음": 92 },
+    competitorPricePosition: {
+      높음: 42,
+      비슷함: 72,
+      낮음: 85,
+      "차별화 가격전략": 90,
+    },
+    bundleStrategy: {
+      없음: 35,
+      단품위주: 52,
+      세트운영: 76,
+      "상황별 번들 최적화": 90,
+    },
+    costControl: { 미흡: 35, 보통: 60, 양호: 78, "매우 양호": 92 },
+    workers: { "1명": 42, "2~3명": 70, "4~5명": 82, "6명 이상": 85 },
+    seats: { "10석 미만": 50, "10~20석": 72, "20~50석": 82, "50석 이상": 76 },
+    peakTimeWork: { 어려움: 35, 보통: 62, 수월함: 88 },
+    rentBurden: { 높음: 35, 보통: 58, 낮음: 80, "매우 낮음": 90 },
+    operationStandardization: {
+      없음: 35,
+      일부만: 58,
+      대부분: 78,
+      "체계적으로 운영": 92,
+    },
+  };
+
+  return scoreMaps[key]?.[value] ?? fallback;
+}
+
 function getCategoryQa(
-    label: string,
-    answers: Record<string, string | string[]>,
+  label: string,
+  answers: Record<string, string | string[]>,
 ): QaItem[] {
   if (label === "매출 성과") {
     return [
       {
         question: "현재 월 평균 매출 규모는 어느 정도인가요?",
         answer: getAnswerText(answers, "revenue"),
+        score: getAnswerScore(answers, "revenue"),
       },
       {
         question: "매출이 최근 3개월간 어떤 추세인가요?",
         answer: getAnswerText(answers, "revenueTrend"),
+        score: getAnswerScore(answers, "revenueTrend"),
       },
       {
         question: "매출은 주로 어디서 발생하나요?",
         answer: getAnswerText(answers, "sales"),
+        score: getAnswerScore(answers, "sales"),
+      },
+      {
+        question: "매출이 가장 많이 발생하는 시간대는 언제인가요?",
+        answer: getAnswerText(answers, "peak"),
+        score: getAnswerScore(answers, "peak"),
+      },
+      {
+        question: "최근 객단가 흐름은 어떤가요?",
+        answer: getAnswerText(answers, "averageOrderTrend"),
+        score: getAnswerScore(answers, "averageOrderTrend"),
       },
     ];
   }
@@ -608,10 +826,27 @@ function getCategoryQa(
       {
         question: "마케팅은 어떻게 하고 계신가요?",
         answer: getAnswerText(answers, "marketing"),
+        score: getAnswerScore(answers, "marketing"),
+      },
+      {
+        question: "프로모션 진행 빈도는 어느 정도인가요?",
+        answer: getAnswerText(answers, "promotionFrequency"),
+        score: getAnswerScore(answers, "promotionFrequency"),
+      },
+      {
+        question: "광고/홍보 효율은 어느 수준인가요?",
+        answer: getAnswerText(answers, "adEfficiency"),
+        score: getAnswerScore(answers, "adEfficiency"),
+      },
+      {
+        question: "리뷰 관리는 하고 있나요?",
+        answer: getAnswerText(answers, "reviewControl"),
+        score: getAnswerScore(answers, "reviewControl"),
       },
       {
         question: "가장 큰 경영 고민은 무엇인가요?",
         answer: getAnswerText(answers, "challenge"),
+        score: getAnswerScore(answers, "challenge"),
       },
     ];
   }
@@ -621,14 +856,27 @@ function getCategoryQa(
       {
         question: "재방문 고객 비율은 어느 정도인가요?",
         answer: getAnswerText(answers, "repeat"),
+        score: getAnswerScore(answers, "repeat"),
       },
       {
         question: "고객의 재방문 주기는 어떤가요?",
         answer: getAnswerText(answers, "repeatCycle"),
+        score: getAnswerScore(answers, "repeatCycle"),
       },
       {
         question: "고객층은 어떻게 되나요?",
         answer: getAnswerText(answers, "customerPool"),
+        score: getAnswerScore(answers, "customerPool"),
+      },
+      {
+        question: "단골 프로그램은 운영하고 있나요?",
+        answer: getAnswerText(answers, "loyaltyProgram"),
+        score: getAnswerScore(answers, "loyaltyProgram"),
+      },
+      {
+        question: "고객이 재방문하는 이유를 명확히 알고 계신가요?",
+        answer: getAnswerText(answers, "revisitReasonClarity"),
+        score: getAnswerScore(answers, "revisitReasonClarity"),
       },
     ];
   }
@@ -638,10 +886,27 @@ function getCategoryQa(
       {
         question: "리뷰 관리는 하고 있나요?",
         answer: getAnswerText(answers, "reviewControl"),
+        score: getAnswerScore(answers, "reviewControl"),
       },
       {
-        question: "가장 큰 경영 고민은 무엇인가요?",
-        answer: getAnswerText(answers, "challenge"),
+        question: "리뷰 평균 평점 수준은 어느 정도인가요?",
+        answer: getAnswerText(answers, "ratingLevel"),
+        score: getAnswerScore(answers, "ratingLevel"),
+      },
+      {
+        question: "부정 리뷰 대응 속도는 어느 정도인가요?",
+        answer: getAnswerText(answers, "reviewResponseSpeed"),
+        score: getAnswerScore(answers, "reviewResponseSpeed"),
+      },
+      {
+        question: "클레임 해결 속도/완성도는 어떤가요?",
+        answer: getAnswerText(answers, "complaintResolution"),
+        score: getAnswerScore(answers, "complaintResolution"),
+      },
+      {
+        question: "고객 응대 매뉴얼은 준비되어 있나요?",
+        answer: getAnswerText(answers, "csManual"),
+        score: getAnswerScore(answers, "csManual"),
       },
     ];
   }
@@ -651,10 +916,27 @@ function getCategoryQa(
       {
         question: "객단가는 어느 정도인가요?",
         answer: getAnswerText(answers, "menuPrice"),
+        score: getAnswerScore(answers, "menuPrice"),
       },
       {
-        question: "고객층은 어떻게 되나요?",
-        answer: getAnswerText(answers, "customerPool"),
+        question: "고객의 가격 만족도는 어떤가요?",
+        answer: getAnswerText(answers, "priceSatisfaction"),
+        score: getAnswerScore(answers, "priceSatisfaction"),
+      },
+      {
+        question: "경쟁 매장 대비 가격 포지션은 어떤가요?",
+        answer: getAnswerText(answers, "competitorPricePosition"),
+        score: getAnswerScore(answers, "competitorPricePosition"),
+      },
+      {
+        question: "세트/번들 가격 전략은 운영 중인가요?",
+        answer: getAnswerText(answers, "bundleStrategy"),
+        score: getAnswerScore(answers, "bundleStrategy"),
+      },
+      {
+        question: "원가 통제 수준은 어느 정도인가요?",
+        answer: getAnswerText(answers, "costControl"),
+        score: getAnswerScore(answers, "costControl"),
       },
     ];
   }
@@ -663,25 +945,34 @@ function getCategoryQa(
     {
       question: "근무 인원은 몇 명인가요?",
       answer: getAnswerText(answers, "workers"),
+      score: getAnswerScore(answers, "workers"),
     },
     {
       question: "좌석 수는 몇 개인가요?",
       answer: getAnswerText(answers, "seats"),
+      score: getAnswerScore(answers, "seats"),
     },
     {
       question: "피크 시간 대응이 가능한가요?",
       answer: getAnswerText(answers, "peakTimeWork"),
+      score: getAnswerScore(answers, "peakTimeWork"),
     },
     {
-      question: "매출이 가장 많이 발생하는 시간대는 언제인가요?",
-      answer: getAnswerText(answers, "peak"),
+      question: "임대료 부담 수준은 어느 정도인가요?",
+      answer: getAnswerText(answers, "rentBurden"),
+      score: getAnswerScore(answers, "rentBurden"),
+    },
+    {
+      question: "운영 매뉴얼/체크리스트 표준화 정도는 어떤가요?",
+      answer: getAnswerText(answers, "operationStandardization"),
+      score: getAnswerScore(answers, "operationStandardization"),
     },
   ];
 }
 
 function toText(
-    value: string | string[] | undefined,
-    fallback = "미입력",
+  value: string | string[] | undefined,
+  fallback = "미입력",
 ): string {
   if (!value) return fallback;
   if (Array.isArray(value)) return value.join(", ") || fallback;
@@ -696,10 +987,10 @@ function getVisitorPersona(customerPool: string, repeat: string): string {
     return "점심/퇴근 시간대 20~30대 직장인이 많이 오는 가게입니다.";
   }
   if (
-      cp.includes("가족") ||
-      cp.includes("주부") ||
-      cp.includes("40") ||
-      cp.includes("50")
+    cp.includes("가족") ||
+    cp.includes("주부") ||
+    cp.includes("40") ||
+    cp.includes("50")
   ) {
     return "가족 단위와 40~50대 생활권 고객이 많이 오는 가게입니다.";
   }
@@ -738,9 +1029,9 @@ function getRelevantMarketItems(bizType: string): MarketItem[] {
   }
 
   if (
-      normalized.includes("분식") ||
-      normalized.includes("한식") ||
-      normalized.includes("식당")
+    normalized.includes("분식") ||
+    normalized.includes("한식") ||
+    normalized.includes("식당")
   ) {
     return [
       {
@@ -765,9 +1056,9 @@ function getRelevantMarketItems(bizType: string): MarketItem[] {
 }
 
 function getCategoryInsight(
-    label: string,
-    answers: Record<string, string | string[]>,
-    bizType: string,
+  label: string,
+  answers: Record<string, string | string[]>,
+  bizType: string,
 ) {
   if (label === "매출 성과") {
     return {
@@ -799,8 +1090,8 @@ function getCategoryInsight(
 
   if (label === "단골 확보") {
     const customerPool = toText(
-        answers.customerPool as string | string[] | undefined,
-        "",
+      answers.customerPool as string | string[] | undefined,
+      "",
     );
     const repeat = toText(answers.repeat as string | string[] | undefined, "");
     const persona = getVisitorPersona(customerPool, repeat);
@@ -838,7 +1129,7 @@ function getCategoryInsight(
       title: "요즘 저렴한 품목",
       desc: "사장님 업종과 가장 관련 있는 품목 3개를 사이트 데이터 기준으로 추렸습니다.",
       bullets: marketItems.map(
-          (item) => `${item.name} · ${item.price} (${item.trend})`,
+        (item) => `${item.name} · ${item.price} (${item.trend})`,
       ),
       ctaLabel: "시세 사이트 바로가기",
       ctaPath: "/market-price",
@@ -858,12 +1149,101 @@ function getCategoryInsight(
   };
 }
 
+function getDeepCategorySignals(label: string, metrics: PosMetrics): string[] {
+  const toNum = (v?: string) => Number(v || 0);
+  if (label === "매출 성과") {
+    const peakShare = toNum(metrics.peakSalesShare);
+    const topMenuShare = toNum(metrics.topMenuShare);
+    return [
+      `피크시간 매출 비중 ${metrics.peakSalesShare || "-"}% 기준으로 피크 집중 운영이 필요합니다.`,
+      topMenuShare >= 55
+        ? `상위 메뉴 비중 ${metrics.topMenuShare || "-"}%로 메뉴 편중 리스크가 큽니다.`
+        : `상위 메뉴 비중 ${metrics.topMenuShare || "-"}%로 메뉴 포트폴리오가 비교적 안정적입니다.`,
+      peakShare >= 60
+        ? "피크 외 시간대 매출 보완 캠페인이 우선 과제입니다."
+        : "현재 피크 편중이 과도하지 않아 객단가 개선 전략을 병행하기 좋습니다.",
+    ];
+  }
+  if (label === "마케팅 역량") {
+    const conversion = toNum(metrics.conversionRate);
+    return [
+      `광고비 ${metrics.adBudget || "-"}원, 전환율 ${metrics.conversionRate || "-"}%를 기준으로 효율을 산정했습니다.`,
+      conversion > 0 && conversion < 5
+        ? "전환율이 낮아 메시지/랜딩 페이지 개선이 우선입니다."
+        : "전환율이 상대적으로 안정적이어서 채널 확장 테스트가 가능합니다.",
+    ];
+  }
+  if (label === "단골 확보") {
+    return [
+      `재방문 고객 비중 ${metrics.repeatCustomerRate || "-"}%를 기준으로 단골 유지 전략을 추천합니다.`,
+      "재방문율과 리뷰/혜택 루틴을 함께 관리할 때 효과가 큽니다.",
+    ];
+  }
+  if (label === "평판 관리") {
+    return [
+      `평균 평점 ${metrics.reviewAverageScore || "-"}, 부정 리뷰 비중 ${metrics.negativeReviewRatio || "-"}%를 반영했습니다.`,
+      "리뷰 응답 속도와 템플릿 표준화가 평판 점수 개선의 핵심입니다.",
+    ];
+  }
+  if (label === "가격 경쟁력") {
+    return [
+      `경쟁점 대비 가격차 ${metrics.competitorPriceGap || "-"}%, 번들 주문 비중 ${metrics.bundleOrderRatio || "-"}%를 반영했습니다.`,
+      "가격 정책은 단품보다 번들/세트 설계로 체감가치를 높이는 방식이 유리합니다.",
+    ];
+  }
+  return [
+    `인건비 ${metrics.laborCost || "-"}원, 테이블 회전율 ${metrics.tableTurnoverRate || "-"}(일) 데이터를 반영했습니다.`,
+    "피크 인력 배치와 회전율 개선을 동시에 관리하면 운영 효율이 빠르게 개선됩니다.",
+  ];
+}
+
+function getDeepExecutionNotes(label: string, metrics: PosMetrics) {
+  if (label === "매출 성과") {
+    return {
+      shortTerm: [
+        `2주 내 피크 비중(${metrics.peakSalesShare || "-"}%) 구간 운영 최적화 실험`,
+        "주간 매출 리포트로 저성과 시간대 즉시 보정",
+      ],
+      midTerm: [
+        "4~8주 상위 메뉴 편중 완화 캠페인 운영",
+        "채널 비중 기반 인력/재고 월간 재설계",
+      ],
+    };
+  }
+  if (label === "마케팅 역량") {
+    return {
+      shortTerm: [
+        `전환율(${metrics.conversionRate || "-"}%) 개선을 위한 소재/랜딩 A/B 테스트`,
+        "리뷰 응답 템플릿 표준화 및 24시간 내 대응 루틴 고정",
+      ],
+      midTerm: [
+        "채널별 CAC/전환율 대시보드 정례 운영",
+        "고객군별 메시지 분리 캠페인 월 2회 실행",
+      ],
+    };
+  }
+  return {
+    shortTerm: [
+      "핵심 KPI 2개를 선정해 2주 단위 개선 실험 반복",
+      "누락되는 운영 루틴을 체크리스트로 고정",
+    ],
+    midTerm: [
+      "월 단위 KPI 목표 재설정 및 달성률 리뷰 정례화",
+      "고효율 실행안을 표준 프로세스로 문서화",
+    ],
+  };
+}
+
 export function ExistingResultReport({
-                                       answers,
-                                       onReset,
-                                     }: {
+  answers,
+  onReset,
+  onGoMain,
+  selectedCategories = [],
+}: {
   answers: Record<string, string | string[]>;
   onReset: () => void;
+  onGoMain: () => void;
+  selectedCategories?: string[];
 }) {
   const navigate = useNavigate();
 
@@ -877,6 +1257,30 @@ export function ExistingResultReport({
     text: "",
   });
   const [isAiLoading, setIsAiLoading] = useState(true);
+  const analysisMode = ((answers.analysisMode as string) ||
+    "light") as AnalysisMode;
+  const posMetrics = useMemo<PosMetrics>(
+    () => ({
+      monthlyRevenue: (answers.monthlyRevenue as string) || "",
+      monthlyOrders: (answers.monthlyOrders as string) || "",
+      averageTicket: (answers.averageTicket as string) || "",
+      peakSalesShare: (answers.peakSalesShare as string) || "",
+      dineInShare: (answers.dineInShare as string) || "",
+      deliveryShare: (answers.deliveryShare as string) || "",
+      takeoutShare: (answers.takeoutShare as string) || "",
+      topMenuShare: (answers.topMenuShare as string) || "",
+      adBudget: (answers.adBudget as string) || "",
+      conversionRate: (answers.conversionRate as string) || "",
+      repeatCustomerRate: (answers.repeatCustomerRate as string) || "",
+      reviewAverageScore: (answers.reviewAverageScore as string) || "",
+      negativeReviewRatio: (answers.negativeReviewRatio as string) || "",
+      competitorPriceGap: (answers.competitorPriceGap as string) || "",
+      bundleOrderRatio: (answers.bundleOrderRatio as string) || "",
+      laborCost: (answers.laborCost as string) || "",
+      tableTurnoverRate: (answers.tableTurnoverRate as string) || "",
+    }),
+    [answers],
+  );
 
   const bizType = (answers.bizType as string) || "카페/음료";
   const region = (answers.region as string) || "서울 마포구/용산구";
@@ -884,10 +1288,10 @@ export function ExistingResultReport({
 
   const revenue = (answers.revenue as string) || "500만~1,000만 원";
   const revenueScore = revenue.includes("2,000")
-      ? 95
-      : revenue.includes("1,000")
-          ? 80
-          : 60;
+    ? 95
+    : revenue.includes("1,000")
+      ? 80
+      : 60;
   const marketingScore = challenge.includes("마케팅") ? 85 : 65;
   const loyaltyScore = challenge.includes("마케팅") ? 60 : 72;
   const reviewScore = 70;
@@ -895,22 +1299,26 @@ export function ExistingResultReport({
   const operationEfficiencyScore = 74;
 
   const operationScore = Math.round(
-      (revenueScore +
-          marketingScore +
-          loyaltyScore +
-          reviewScore +
-          competitivenessScore +
-          operationEfficiencyScore) /
+    (revenueScore +
+      marketingScore +
+      loyaltyScore +
+      reviewScore +
+      competitivenessScore +
+      operationEfficiencyScore) /
       6,
   );
 
-  const detailStats: ScoreItem[] = [
+  const allDetailStats: ScoreItem[] = [
     {
       label: "매출 성과",
       value: revenueScore,
       desc: "매출 추세 및 성장 모멘텀",
     },
-    { label: "마케팅", value: marketingScore, desc: "홍보 및 유입 확보 역량" },
+    {
+      label: "마케팅 역량",
+      value: marketingScore,
+      desc: "홍보 및 유입 확보 역량",
+    },
     { label: "단골 확보", value: loyaltyScore, desc: "재방문 고객 유지 수준" },
     { label: "평판 관리", value: reviewScore, desc: "리뷰 및 고객 평판 대응" },
     {
@@ -925,64 +1333,107 @@ export function ExistingResultReport({
     },
   ];
 
+  const selectedFromAnswers = Array.isArray(answers.selectedCategories)
+    ? (answers.selectedCategories as string[])
+    : [];
+  const appliedCategories =
+    selectedCategories.length > 0 ? selectedCategories : selectedFromAnswers;
+  const detailStats =
+    appliedCategories.length > 0
+      ? allDetailStats.filter((stat) => appliedCategories.includes(stat.label))
+      : allDetailStats;
+
   const CATEGORY_STAGE_COUNT = detailStats.length;
-  const TOTAL_STAGES = 1 + CATEGORY_STAGE_COUNT + 2;
+  const TOTAL_STAGES = 1 + CATEGORY_STAGE_COUNT + 1;
 
   const topStrengthItems = [...detailStats]
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 2)
-      .map((s) => ({ label: s.label, value: s.value }));
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 2)
+    .map((s) => ({ label: s.label, value: s.value }));
 
   // 가장 점수가 낮은 항목을 약점(단점)으로 추출합니다.
   const topWeaknessItem = [...detailStats]
-      .sort((a, b) => a.value - b.value)
-      .slice(0, 1)
-      .map((s) => ({ label: s.label, value: s.value }))[0];
+    .sort((a, b) => a.value - b.value)
+    .slice(0, 1)
+    .map((s) => ({ label: s.label, value: s.value }))[0];
 
   const storeSize =
-      operationScore >= 80
-          ? "대규모"
-          : operationScore >= 65
-              ? "중규모"
-              : "소규모";
+    operationScore >= 80
+      ? "대규모"
+      : operationScore >= 65
+        ? "중규모"
+        : "소규모";
 
   const aiData = useMemo(
-      () => buildAiData(challenge, storeSize, operationScore),
-      [challenge, storeSize, operationScore],
+    () =>
+      buildAiData(
+        challenge,
+        storeSize,
+        operationScore,
+        analysisMode,
+        posMetrics,
+      ),
+    [challenge, storeSize, operationScore, analysisMode, posMetrics],
   );
 
   const categoryPages = useMemo(
-      () =>
-          detailStats.map((stat) => ({
-            ...stat,
-            avgScore: getCategoryAverageScore(stat.label),
-            oneLiner: getCategoryOneLiner(
-                stat.label,
-                stat.value,
-                getCategoryAverageScore(stat.label),
-            ),
-            qaItems: getCategoryQa(stat.label, answers),
-            solutions: getCategorySolutions(stat.label, stat.value),
-            supports: getCategorySupportItems(stat.label, region, bizType),
-          })),
-      [detailStats, region, bizType, answers],
+    () =>
+      detailStats.map((stat) => ({
+        ...stat,
+        avgScore: getCategoryAverageScore(stat.label),
+        oneLiner: getCategoryOneLiner(
+          stat.label,
+          stat.value,
+          getCategoryAverageScore(stat.label),
+        ),
+        qaItems: getCategoryQa(stat.label, answers),
+        solutions: getCategorySolutions(stat.label, stat.value, answers),
+        supports: getCategorySupportItems(stat.label, region, bizType),
+      })),
+    [detailStats, region, bizType, answers],
   );
 
   const currentInsight = useMemo(
-      () =>
-          getCategoryInsight(
-              categoryPages[Math.max(0, stage - 1)]?.label ?? "",
-              answers,
-              bizType,
-          ),
-      [categoryPages, stage, answers, bizType],
+    () =>
+      getCategoryInsight(
+        categoryPages[Math.max(0, stage - 1)]?.label ?? "",
+        answers,
+        bizType,
+      ),
+    [categoryPages, stage, answers, bizType],
+  );
+  const deepSignals = useMemo(
+    () =>
+      analysisMode === "deep" && stage >= 1 && stage <= CATEGORY_STAGE_COUNT
+        ? getDeepCategorySignals(
+            categoryPages[stage - 1]?.label ?? "",
+            posMetrics,
+          )
+        : [],
+    [analysisMode, stage, CATEGORY_STAGE_COUNT, categoryPages, posMetrics],
+  );
+  const deepExecutionNotes = useMemo(
+    () =>
+      analysisMode === "deep" && stage >= 1 && stage <= CATEGORY_STAGE_COUNT
+        ? getDeepExecutionNotes(
+            categoryPages[stage - 1]?.label ?? "",
+            posMetrics,
+          )
+        : null,
+    [analysisMode, stage, CATEGORY_STAGE_COUNT, categoryPages, posMetrics],
   );
   const isSalesRiskStage =
-      stage >= 1 && stage <= 6 && categoryPages[stage - 1].label === "매출 성과";
+    stage >= 1 &&
+    stage <= CATEGORY_STAGE_COUNT &&
+    categoryPages[stage - 1]?.label === "매출 성과";
 
   useEffect(() => {
     setStage(0);
   }, [answers]);
+
+  useEffect(() => {
+    setStage((prev) => Math.min(prev, Math.max(TOTAL_STAGES - 1, 0)));
+  }, [TOTAL_STAGES]);
 
   useEffect(() => {
     setIsAiLoading(true);
@@ -992,527 +1443,486 @@ export function ExistingResultReport({
 
   const movePrev = () => setStage((prev) => Math.max(0, prev - 1));
   const moveNext = () =>
-      setStage((prev) => Math.min(TOTAL_STAGES - 1, prev + 1));
+    setStage((prev) => Math.min(TOTAL_STAGES - 1, prev + 1));
 
   return (
-      <div
-          className="min-h-screen pt-10 pb-20 px-4 sm:px-6 text-white"
-          style={{
-            background: "linear-gradient(to bottom, #141720 0%, #09090b 100%)",
-          }}
-      >
-        <div className="max-w-[1100px] mx-auto">
-          {/* 스케치에 맞춘 상단 헤더 레이아웃 (좌우 분할) */}
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-4 gap-4">
-              <div>
-                <div className="text-emerald-400 text-xs font-bold tracking-[0.2em] mb-2">
-                  RESULT FLOW
-                </div>
-                <div className="flex items-center gap-4">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    사장님 맞춤 분석 리포트
-                  </h1>
-                  <button
-                      onClick={onReset}
-                      className="px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-medium hover:border-emerald-400 hover:text-emerald-400 transition-all flex items-center gap-1.5"
-                  >
-                    <RefreshCw className="w-3 h-3" /> 재분석
-                  </button>
-                </div>
+    <div
+      className="min-h-screen pt-10 pb-20 px-4 sm:px-6 text-white"
+      style={{
+        background: "linear-gradient(to bottom, #141720 0%, #09090b 100%)",
+      }}
+    >
+      <div className="max-w-[1100px] mx-auto">
+        {/* 스케치에 맞춘 상단 헤더 레이아웃 (좌우 분할) */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-4 gap-4">
+            <div>
+              <div className="text-emerald-400 text-xs font-bold tracking-[0.2em] mb-2">
+                RESULT FLOW
               </div>
-
-              {/* 우측의 단계 표시 */}
-              <div className="text-xl sm:text-2xl font-bold text-zinc-500 pb-1">
-                <span className="text-emerald-400">{stage + 1}</span> /{" "}
-                {TOTAL_STAGES} 단계
+              <div className="flex items-center gap-4">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  사장님 맞춤 분석 리포트
+                </h1>
+                <button
+                  onClick={onReset}
+                  className="px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-medium hover:border-emerald-400 hover:text-emerald-400 transition-all flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3 h-3" /> 재분석
+                </button>
               </div>
             </div>
 
-            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-              <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300 transition-all"
-                  style={{ width: `${((stage + 1) / TOTAL_STAGES) * 100}%` }}
-              />
+            {/* 우측의 단계 표시 및 목차 이동 */}
+            <div className="flex flex-col items-end gap-2">
+              <div className="text-xl sm:text-2xl font-bold text-zinc-500 pb-1">
+                {/* 화면에 따라 텍스트가 똑똑하게 바뀝니다 */}
+                {stage === 0 ? (
+                  <span className="text-emerald-400">분석 대시보드</span>
+                ) : stage === TOTAL_STAGES - 1 ? (
+                  <span className="text-emerald-400">AI 종합 솔루션</span>
+                ) : (
+                  <>
+                    <span className="text-emerald-400">분석 {stage}</span> /{" "}
+                    {CATEGORY_STAGE_COUNT}
+                  </>
+                )}
+              </div>
+
+              {/* 1페이지 이상 넘어갔을 때 '목차로 돌아가기' 버튼 표시 */}
+              {stage > 0 && (
+                <button
+                  onClick={() => setStage(0)}
+                  className="text-xs font-semibold text-zinc-400 hover:text-emerald-400 underline underline-offset-4 transition-colors"
+                >
+                  처음(목차)으로 돌아가기
+                </button>
+              )}
             </div>
           </div>
 
-          {/* 1/6단계 (종합 랭크) 화면 */}
-          {stage === 0 && (
-              <StageFrame showNext onNext={moveNext}>
-                <div className="relative flex items-center justify-center">
-                  <div className="w-full bg-gradient-to-br from-[#121214] to-emerald-400/20 border border-[#27272a] rounded-[24px] p-8 sm:p-10 flex flex-col min-h-[500px] relative overflow-hidden shadow-2xl">
-                    <div className="flex-1 flex flex-col lg:flex-row justify-between items-center gap-10">
-                      {/* 왼쪽 패널 */}
-                      <div className="w-full lg:w-1/4 flex flex-col self-start mt-4 z-10">
-                        <div className="text-xs text-emerald-400 font-bold mb-2">
-                          카테고리 AI 솔루션
-                        </div>
-                        <h2 className="text-xl font-bold text-white mb-2">
-                          종합 랭크
-                        </h2>
-                        <div className="text-sm font-bold text-zinc-400 mb-8">
-                          현재 매장 규모:{" "}
-                          <span className="text-white">{storeSize}</span>
-                        </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300 transition-all"
+              style={{ width: `${((stage + 1) / TOTAL_STAGES) * 100}%` }}
+            />
+          </div>
+          {stage > 0 && (
+            <div
+              className="mt-6 flex items-center gap-2 overflow-x-auto pb-2"
+              style={{ scrollbarWidth: "none" }} // 스크롤바 숨김 처리
+            >
+              <button
+                onClick={() => setStage(0)}
+                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                  stage === 0
+                    ? "bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                    : "bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 hover:border-white/20"
+                }`}
+              >
+                대시보드
+              </button>
 
-                        <h3 className="text-lg font-bold text-white mb-2">
-                          소상공인 역량
-                        </h3>
-                        <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
-                          첫 화면에서는 핵심 역량 점수만
-                          <br />
-                          먼저 보여드립니다.
-                        </p>
+              {categoryPages.map((page, idx) => {
+                const isActive = stage === idx + 1;
+                return (
+                  <button
+                    key={page.label}
+                    onClick={() => setStage(idx + 1)}
+                    className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                      isActive
+                        ? "bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                        : "bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 hover:border-white/20"
+                    }`}
+                  >
+                    {page.label}
+                  </button>
+                );
+              })}
 
-                        <div className="flex flex-col gap-4">
-                          {detailStats.map((stat) => (
-                              <div
-                                  key={stat.label}
-                                  className="flex items-center gap-3"
-                              >
-                          <span className="text-[13px] font-bold text-zinc-400 w-20 shrink-0">
-                            {stat.label}
-                          </span>
-                                <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                  <div
-                                      className="h-full bg-zinc-600"
-                                      style={{ width: `${stat.value}%` }}
-                                  />
-                                </div>
-                              </div>
-                          ))}
-                        </div>
-                      </div>
+              <button
+                onClick={() => setStage(CATEGORY_STAGE_COUNT + 1)}
+                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                  stage === CATEGORY_STAGE_COUNT + 1
+                    ? "bg-gradient-to-r from-emerald-500 to-blue-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                    : "bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 hover:border-white/20"
+                }`}
+              >
+                AI 종합 솔루션
+              </button>
+            </div>
+          )}
+        </div>
 
-                      {/* 중앙 패널 */}
-                      <div className="w-full lg:w-2/4 flex justify-center z-10">
-                        <HugeGradeGauge
-                            score={operationScore}
-                            topStrengths={topStrengthItems}
-                            topWeakness={topWeaknessItem}
-                        />
-                      </div>
-
-                      {/* 오른쪽 패널 */}
-                      <div className="w-full lg:w-1/4 flex flex-col self-start mt-4 pr-4 lg:pr-10 z-10">
-                        <h3 className="text-lg font-bold text-white mb-6 text-center lg:text-left">
-                          소상공인 등급 가이드
-                        </h3>
-                        <div className="flex flex-col gap-3">
-                          {[
-                            {
-                              g: "S",
-                              color: "text-purple-400",
-                              desc: "90점 이상 최우수",
-                            },
-                            {
-                              g: "A",
-                              color: "text-emerald-400",
-                              desc: "80점 이상 우수",
-                            },
-                            {
-                              g: "B",
-                              color: "text-sky-400",
-                              desc: "70점 이상 양호",
-                            },
-                            {
-                              g: "C",
-                              color: "text-zinc-400",
-                              desc: "70점 미만 보통",
-                            },
-                          ].map((item) => (
-                              <div
-                                  key={item.g}
-                                  className="flex items-center gap-4 bg-[#18181b] px-5 py-4 rounded-2xl border border-white/5"
-                              >
-                          <span
-                              className={`text-2xl font-black w-6 text-center ${item.color}`}
-                          >
-                            {item.g}
-                          </span>
-                                <div className="flex-1 flex flex-col gap-2">
-                                  <div className="text-[11px] font-bold text-zinc-400">
-                                    {item.desc}
-                                  </div>
-                                  <div className="flex gap-1">
-                                    <div className="h-1.5 w-full bg-white/10 rounded-full"></div>
-                                    <div className="h-1.5 w-1/2 bg-white/5 rounded-full"></div>
-                                  </div>
-                                </div>
-                              </div>
-                          ))}
-                        </div>
-                      </div>
+        {/* 1단계 (종합 안내 및 목차 대시보드) 화면 */}
+        {stage === 0 && (
+          <StageFrame showNext onNext={moveNext}>
+            <div className="relative flex items-center justify-center">
+              <div className="w-full bg-gradient-to-br from-[#121214] to-emerald-400/20 border border-[#27272a] rounded-[24px] p-8 sm:p-10 flex flex-col min-h-[500px] relative overflow-hidden shadow-2xl">
+                <div className="flex-1 flex flex-col justify-center z-10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="text-xs text-emerald-400 font-bold">
+                      카테고리 AI 솔루션 안내
                     </div>
-
-                    <div className="mt-12 flex justify-center w-full z-10">
-                      <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-8 py-3 text-sm font-bold text-emerald-200">
-                        다음 단계에서 카테고리별 AI 솔루션을 6페이지로 나누어
-                        보여드립니다.
-                      </div>
+                    <div className="w-fit inline-flex items-center px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-sm font-bold text-white">
+                      업종: {bizType}
                     </div>
                   </div>
-                </div>
-              </StageFrame>
-          )}
 
-          {/* 통합된 메인 컨텐츠 영역 */}
-          {stage > 0 && stage <= CATEGORY_STAGE_COUNT && (
-              <StageFrame showPrev showNext onPrev={movePrev} onNext={moveNext}>
-                <div className="relative flex items-center justify-center">
-                  <div className="w-full space-y-6">
-                    <div className="bg-gradient-to-br from-[#121214] to-emerald-400/20 border border-[#27272a] rounded-[24px] p-6 lg:p-10 shadow-2xl">
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14">
-                        <div className="flex flex-col">
-                          <h2 className="text-3xl font-extrabold mb-3 text-white">
-                            {categoryPages[stage - 1].label}
-                          </h2>
-                          <div className="mb-6 text-zinc-400 text-sm flex items-center gap-2">
-                        <span className="text-2xl font-black text-white">
-                          {categoryPages[stage - 1].value}점
-                        </span>
-                          </div>
+                  <h2 className="text-3xl sm:text-4xl font-black text-white mb-4 tracking-tight">
+                    원하시는 분석 결과를 선택해주세요
+                  </h2>
+                  <p className="text-zinc-300 leading-8 max-w-3xl mb-8">
+                    선택하신 카테고리 기준으로 질문 응답과 운영 맥락을 정리해
+                    실행안을 안내합니다. 아래 카드에서{" "}
+                    <b>원하는 항목을 클릭해 바로 확인</b>하거나 화살표를 눌러
+                    순서대로 볼 수 있습니다.
+                  </p>
 
-                          <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5">
-                            <div className="mb-4">
-                              <div className="flex items-center justify-between text-xs text-zinc-300 mb-1.5">
-                                <span>내 점수</span>
-                                <span className="text-emerald-400 font-bold">
-                              {categoryPages[stage - 1].value}점
-                            </span>
-                              </div>
-                              <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden">
-                                <div
-                                    className="h-full rounded-full bg-emerald-400"
-                                    style={{
-                                      width: `${categoryPages[stage - 1].value}%`,
-                                    }}
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="flex items-center justify-between text-xs text-zinc-300 mb-1.5">
-                                <span>다른 사장님 평균</span>
-                                <span className="text-zinc-200 font-bold">
-                              {categoryPages[stage - 1].avgScore}점
-                            </span>
-                              </div>
-                              <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden">
-                                <div
-                                    className="h-full rounded-full bg-sky-400"
-                                    style={{
-                                      width: `${categoryPages[stage - 1].avgScore}%`,
-                                    }}
-                                />
-                              </div>
-                            </div>
-
-                            <div
-                                className={`text-sm mt-4 font-bold ${categoryPages[stage - 1].value >= categoryPages[stage - 1].avgScore ? "text-emerald-400" : "text-amber-400"}`}
-                            >
-                              {categoryPages[stage - 1].value >=
-                              categoryPages[stage - 1].avgScore
-                                  ? `평균보다 +${categoryPages[stage - 1].value - categoryPages[stage - 1].avgScore}점 높아요`
-                                  : `평균보다 ${categoryPages[stage - 1].avgScore - categoryPages[stage - 1].value}점 낮아요`}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs text-zinc-400 mb-3 font-semibold">
-                              분석에 반영된 질문과 응답
-                            </div>
-                            <QaRadarChart
-                                items={categoryPages[stage - 1].qaItems}
-                                setTooltip={setTooltip}
-                            />
-
-                            <div className="mb-6 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-4 text-sm text-emerald-100 leading-relaxed">
-                          <span className="font-bold text-emerald-300">
-                            AI 한줄평:
-                          </span>{" "}
-                              {categoryPages[stage - 1].oneLiner}
-                            </div>
-                          </div>
+                  {/* 🌟 바로가기 메뉴 (그리드 카드) 영역 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+                    {/* 1. 개별 분석 카테고리 카드들 */}
+                    {categoryPages.map((page, idx) => (
+                      <button
+                        key={page.label}
+                        onClick={() => setStage(idx + 1)}
+                        className="flex flex-col items-start p-5 rounded-2xl border border-white/10 bg-white/5 hover:bg-emerald-500/15 hover:border-emerald-500/50 hover:-translate-y-1 transition-all text-left group shadow-lg"
+                      >
+                        <div className="flex justify-between items-center w-full mb-3">
+                          <span className="px-2.5 py-1 rounded-md bg-white/10 text-emerald-300 text-xs font-bold">
+                            분석 {idx + 1}
+                          </span>
                         </div>
+                        <span className="text-white font-bold text-xl mb-2 group-hover:text-emerald-300 transition-colors">
+                          {page.label}
+                        </span>
+                        <span className="text-zinc-400 text-sm line-clamp-2 leading-relaxed">
+                          {page.oneLiner}
+                        </span>
+                      </button>
+                    ))}
 
-                        {/* 오른쪽 컬럼 (AI 추천, 솔루션) */}
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2 mb-4">
-                            <Sparkles className="w-5 h-5 text-emerald-400" />
-                            <div className="text-lg font-bold text-emerald-300">
-                              AI의 추천
+                    {/* 2. 최종 요약 화면 이동 카드 */}
+                    <button
+                      onClick={() => setStage(CATEGORY_STAGE_COUNT + 1)}
+                      className="flex flex-col items-start p-5 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/20 to-blue-500/10 hover:from-emerald-500/30 hover:to-blue-500/20 hover:-translate-y-1 transition-all text-left group shadow-lg"
+                    >
+                      <div className="flex justify-between items-center w-full mb-3">
+                        <span className="px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 text-xs font-bold">
+                          Final
+                        </span>
+                      </div>
+                      <span className="text-white font-bold text-xl mb-2 group-hover:text-emerald-300 transition-colors">
+                        AI 종합 솔루션
+                      </span>
+                      <span className="text-zinc-300 text-sm line-clamp-2 leading-relaxed">
+                        모든 카테고리 분석을 종합한 최종 요약과 상세 피드백을
+                        확인합니다.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </StageFrame>
+        )}
+
+        {/* 통합된 메인 컨텐츠 영역 */}
+        {stage > 0 && stage <= CATEGORY_STAGE_COUNT && (
+          <StageFrame showPrev showNext onPrev={movePrev} onNext={moveNext}>
+            <div className="relative flex items-center justify-center">
+              <div className="w-full space-y-6">
+                <div className="bg-gradient-to-br from-[#121214] to-emerald-400/20 border border-[#27272a] rounded-[24px] p-6 lg:p-10 shadow-2xl">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14">
+                    <div className="flex flex-col">
+                      <h2 className="text-3xl font-extrabold mb-3 text-white">
+                        {categoryPages[stage - 1].label}
+                      </h2>
+                      <div>
+                        <div className="text-xs text-zinc-400 mb-3 font-semibold">
+                          분석에 반영된 질문과 응답
+                        </div>
+                        <div className="mb-6 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+                          {categoryPages[stage - 1].qaItems.map((qa) => (
+                            <div key={qa.question} className="mb-3 last:mb-0">
+                              <div className="text-xs text-zinc-400 mb-1">
+                                질문
+                              </div>
+                              <div className="text-sm text-white mb-1">
+                                {qa.question}
+                              </div>
+                              <div className="text-xs text-zinc-400 mb-1">
+                                응답
+                              </div>
+                              <div className="text-sm text-emerald-200">
+                                {qa.answer}
+                              </div>
                             </div>
-                          </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
 
-                          {/* AI 상태 요약 박스 (추후 카테고리가 세분화 되면 ai세부 분석출력예정) */}
-                          <div className="mb-6 rounded-[20px] border border-[#27272a] bg-[#121214]/70 backdrop-blur-md p-6 flex flex-col gap-3 text-[15px] tracking-wide text-emerald-400/90 font-medium shadow-lg">
+                    {/* 오른쪽 컬럼 (AI 추천, 솔루션) */}
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Sparkles className="w-5 h-5 text-emerald-400" />
+                        <div className="text-lg font-bold text-emerald-300">
+                          AI의 추천
+                        </div>
+                      </div>
+
+                      <div className="mb-6 rounded-[20px] border border-[#27272a] bg-[#121214]/70 backdrop-blur-md p-6 flex flex-col gap-3 text-[15px] tracking-wide text-emerald-400/90 font-medium shadow-lg">
+                        {analysisMode === "deep" && deepSignals.length > 0 ? (
+                          deepSignals.map((signal) => (
+                            <div key={signal}>{signal}</div>
+                          ))
+                        ) : (
+                          <>
                             <div>현재 상황 : 매출 규모 정상</div>
                             <div>지속 가능성 : 낮음</div>
                             <div>배달비 : 적정 수준 유지</div>
                             <div>지출 상황 : 긍정적</div>
-                          </div>
+                          </>
+                        )}
+                      </div>
 
-                          <p className="text-sm text-zinc-300 leading-relaxed mb-5">
-                            입력하신 응답을 바탕으로{" "}
-                            <span className="font-bold text-emerald-400">
+                      <p className="text-sm text-zinc-300 leading-relaxed mb-5">
+                        입력하신 응답을 바탕으로{" "}
+                        <span className="font-bold text-emerald-400">
                           {categoryPages[stage - 1].label}
                         </span>{" "}
-                            영역에서 가장 효과가 큰 실행안을 우선순위로
-                            정리했습니다.
-                          </p>
+                        영역에서 가장 효과가 큰 실행안을 우선순위로
+                        정리했습니다.
+                      </p>
+                      {analysisMode === "deep" && deepExecutionNotes && (
+                        <div className="mb-5 rounded-xl border border-emerald-400/25 bg-emerald-500/5 p-4">
+                          <div className="text-xs font-bold text-emerald-300 mb-2">
+                            집중분석 실행 가이드
+                          </div>
+                          <div className="text-xs text-zinc-300 mb-2">
+                            단기 실행(1~2주)
+                          </div>
+                          {deepExecutionNotes.shortTerm.map((item) => (
+                            <div
+                              key={item}
+                              className="text-sm text-zinc-100 leading-relaxed mb-1"
+                            >
+                              - {item}
+                            </div>
+                          ))}
+                          <div className="text-xs text-zinc-300 mt-3 mb-2">
+                            중기 실행(1~2개월)
+                          </div>
+                          {deepExecutionNotes.midTerm.map((item) => (
+                            <div
+                              key={item}
+                              className="text-sm text-zinc-100 leading-relaxed mb-1"
+                            >
+                              - {item}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                          <div className="space-y-3">
-                            {categoryPages[stage - 1].solutions.map(
-                                (solution, idx) => (
-                                    <div
-                                        key={solution}
-                                        className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4"
-                                    >
+                      <div className="space-y-3">
+                        {categoryPages[stage - 1].solutions.map(
+                          (solution, idx) => (
+                            <div
+                              key={solution}
+                              className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4"
+                            >
                               <span className="mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-500/20 text-[12px] font-bold text-emerald-300">
                                 {idx + 1}
                               </span>
-                                      <span className="text-zinc-100 text-sm leading-relaxed font-medium">
+                              <span className="text-zinc-100 text-sm leading-relaxed font-medium">
                                 {solution}
                               </span>
-                                    </div>
-                                ),
-                            )}
-                          </div>
-
-                          <div className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-emerald-100/80 leading-relaxed">
-                            <div className="font-bold text-emerald-300 mb-1">
-                              {categoryPages[stage - 1].desc}
                             </div>
-                            실행은 한 번에 모두 진행하기보다 1순위부터 2주 단위로
-                            점검해 적용하시는 것을 권장드립니다.
-                          </div>
-                        </div>
-                      </div>
-                      {/* 하단 인사이트 카드 (위험요소 등) */}
-                      <div
-                          className={`mt-4 rounded-[24px] p-6 lg:p-8 shadow-lg ${
-                              isSalesRiskStage
-                                  ? "bg-[#1a1111] border border-red-500/40"
-                                  : "bg-[#121214] border border-[#27272a]"
-                          }`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                          <div>
-                            <h3
-                                className={`text-lg font-bold ${isSalesRiskStage ? "text-red-400" : "text-white"}`}
-                            >
-                              {currentInsight.title}
-                            </h3>
-                            <p
-                                className={`text-[13px] mt-1 ${isSalesRiskStage ? "text-red-200/80" : "text-zinc-400"}`}
-                            >
-                              {currentInsight.desc}
-                            </p>
-                          </div>
-                          {currentInsight.ctaLabel && currentInsight.ctaPath && (
-                              <button
-                                  onClick={() => navigate(currentInsight.ctaPath)}
-                                  className={`rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all ${
-                                      isSalesRiskStage
-                                          ? "bg-red-500 hover:bg-red-600"
-                                          : "bg-emerald-500 hover:bg-emerald-600"
-                                  }`}
-                              >
-                                {currentInsight.ctaLabel}
-                              </button>
-                          )}
-                        </div>
-
-                        {categoryPages[stage - 1].label === "운영 효율" ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {categoryPages[stage - 1].supports
-                                  .slice(0, 2)
-                                  .map((item) => (
-                                      <div
-                                          key={`${item.id}-${item.title}`}
-                                          className="rounded-xl border border-white/10 bg-white/5 p-4"
-                                      >
-                                        <div className="flex items-start justify-between gap-2 mb-2">
-                                          <div className="text-sm font-bold text-white leading-5">
-                                            {item.title}
-                                          </div>
-                                          <span className="text-[11px] font-bold rounded px-2 py-1 bg-amber-500/15 text-amber-400 border border-amber-400/20 whitespace-nowrap">
-                                  {item.status}
-                                </span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-xs text-zinc-400">
-                                          <span>{item.org}</span>
-                                          <span className="text-emerald-400 font-bold text-sm">
-                                  {item.amount}
-                                </span>
-                                        </div>
-                                      </div>
-                                  ))}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {currentInsight.bullets.map((item) => (
-                                  <div
-                                      key={item}
-                                      className={`rounded-xl p-4 text-sm leading-relaxed font-medium ${
-                                          isSalesRiskStage
-                                              ? "border border-red-400/35 bg-red-500/10 text-red-100"
-                                              : "border border-white/10 bg-white/5 text-zinc-200"
-                                      }`}
-                                  >
-                                    {item}
-                                  </div>
-                              ))}
-                            </div>
+                          ),
                         )}
+                      </div>
+
+                      <div className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-emerald-100/80 leading-relaxed">
+                        <div className="font-bold text-emerald-300 mb-1">
+                          {categoryPages[stage - 1].desc}
+                        </div>
+                        실행은 한 번에 모두 진행하기보다 1순위부터 2주 단위로
+                        점검해 적용하시는 것을 권장드립니다.
                       </div>
                     </div>
                   </div>
-                </div>
-              </StageFrame>
-          )}
-
-          {stage === CATEGORY_STAGE_COUNT + 1 && (
-              <StageFrame showPrev showNext onPrev={movePrev} onNext={moveNext}>
-                <div className="bg-gradient-to-br from-[#121214] to-emerald-400/20 border border-[#27272a] rounded-[20px] p-6 sm:p-8">
-                  <div className="text-xs text-emerald-400 font-bold mb-2">
-                    AI 솔루션 요약
-                  </div>
-                  {isAiLoading ? (
-                      <div className="h-[240px] flex flex-col items-center justify-center text-zinc-500">
-                        <Sparkles className="w-8 h-8 text-emerald-400 animate-pulse mb-3" />
-                        맞춤형 요약을 정리하고 있습니다...
-                      </div>
-                  ) : (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-                          <h3 className="font-bold text-lg mb-3">종합 진단</h3>
-                          <p className="text-zinc-300 leading-7">{aiData.summary}</p>
-                          <ul className="mt-4 space-y-2">
-                            {aiData.actions.map((action) => (
-                                <li
-                                    key={action}
-                                    className="flex items-start gap-2 text-sm text-zinc-200"
-                                >
-                                  <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                                  {action}
-                                </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div className="rounded-xl border border-white/10 bg-white/5 p-5 text-zinc-300 leading-7 min-h-[220px]">
-                          <TypewriterText text={aiData.detailed} speed={24} />
-                        </div>
-                      </div>
-                  )}
-                </div>
-              </StageFrame>
-          )}
-
-          {stage === CATEGORY_STAGE_COUNT + 2 && (
-              <StageFrame showPrev onPrev={movePrev}>
-                <div className="bg-[#121214] border border-[#27272a] rounded-[20px] p-6 sm:p-8">
-                  <div className="text-xs text-emerald-400 font-bold mb-2">
-                    다른 기능도 이용해보세요
-                  </div>
-                  <h2 className="text-2xl font-bold mb-6">
-                    사장님을 위한 추가 서비스
-                  </h2>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      {
-                        title: "사장님 커뮤니티",
-                        desc: "운영 노하우와 실제 사례를 확인하세요.",
-                        path: "/community",
-                        btn: "커뮤니티 이동",
-                      },
-                      {
-                        title: "시장 시세 확인",
-                        desc: "식자재 및 주요 품목 시세를 살펴보세요.",
-                        path: "/market-price",
-                        btn: "시세 보기",
-                      },
-                      {
-                        title: "서비스 도구",
-                        desc: "운영 효율을 높이는 도구를 활용하세요.",
-                        path: "/tools",
-                        btn: "도구 열기",
-                      },
-                      {
-                        title: "지원사업 모음",
-                        desc: "지금 신청 가능한 사업을 한번에 확인하세요.",
-                        path: "/support",
-                        btn: "사업 보기",
-                      },
-                    ].map((item) => (
-                        <div
-                            key={item.title}
-                            className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col"
+                  {/* 하단 인사이트 카드 (위험요소 등) */}
+                  <div
+                    className={`mt-4 rounded-[24px] p-6 lg:p-8 shadow-lg ${
+                      isSalesRiskStage
+                        ? "bg-[#1a1111] border border-red-500/40"
+                        : "bg-[#121214] border border-[#27272a]"
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                      <div>
+                        <h3
+                          className={`text-lg font-bold ${isSalesRiskStage ? "text-red-400" : "text-white"}`}
                         >
-                          <div className="font-bold mb-2">{item.title}</div>
-                          <div className="text-zinc-400 text-sm leading-6 flex-1">
-                            {item.desc}
-                          </div>
-                          <button
-                              onClick={() => navigate(item.path)}
-                              className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 transition-all"
-                          >
-                            {item.btn}
-                          </button>
-                        </div>
-                    ))}
-                  </div>
+                          {currentInsight.title}
+                        </h3>
+                        <p
+                          className={`text-[13px] mt-1 ${isSalesRiskStage ? "text-red-200/80" : "text-zinc-400"}`}
+                        >
+                          {currentInsight.desc}
+                        </p>
+                      </div>
+                      {currentInsight.ctaLabel && currentInsight.ctaPath && (
+                        <button
+                          onClick={() => navigate(currentInsight.ctaPath)}
+                          className={`rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all ${
+                            isSalesRiskStage
+                              ? "bg-red-500 hover:bg-red-600"
+                              : "bg-emerald-500 hover:bg-emerald-600"
+                          }`}
+                        >
+                          {currentInsight.ctaLabel}
+                        </button>
+                      )}
+                    </div>
 
-                  <div className="mt-8 flex justify-center">
-                    <button
-                        onClick={() => navigate("/")}
-                        className="group flex items-center gap-2 px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all"
-                    >
-                      <Store className="w-4 h-4 text-zinc-400 group-hover:text-emerald-400" />
-                      <span className="text-zinc-300 group-hover:text-emerald-400 font-semibold">
-                    메인 화면으로 돌아가기
-                  </span>
-                    </button>
+                    {categoryPages[stage - 1].label === "운영 효율" ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {categoryPages[stage - 1].supports
+                          .slice(0, 2)
+                          .map((item) => (
+                            <div
+                              key={`${item.id}-${item.title}`}
+                              className="rounded-xl border border-white/10 bg-white/5 p-4"
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="text-sm font-bold text-white leading-5">
+                                  {item.title}
+                                </div>
+                                <span className="text-[11px] font-bold rounded px-2 py-1 bg-amber-500/15 text-amber-400 border border-amber-400/20 whitespace-nowrap">
+                                  {item.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>{item.org}</span>
+                                <span className="text-emerald-400 font-bold text-sm">
+                                  {item.amount}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {currentInsight.bullets.map((item) => (
+                          <div
+                            key={item}
+                            className={`rounded-xl p-4 text-sm leading-relaxed font-medium ${
+                              isSalesRiskStage
+                                ? "border border-red-400/35 bg-red-500/10 text-red-100"
+                                : "border border-white/10 bg-white/5 text-zinc-200"
+                            }`}
+                          >
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </StageFrame>
-          )}
-        </div>
-
-        {tooltip.visible && (
-            <div
-                className="fixed z-[100] pointer-events-none"
-                style={{
-                  left: tooltip.x + 14,
-                  top: tooltip.y + 14,
-                  background: "#18181b",
-                  border: "1px solid #3f3f46",
-                  borderRadius: "8px",
-                  padding: "10px 14px",
-                  color: "white",
-                  fontSize: "0.85rem",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
-                  whiteSpace: "nowrap",
-                }}
-            >
-              {tooltip.type === "summary" ? (
-                  <>
-                    <span className="text-emerald-400 font-semibold mr-2">요약</span>
-                    <span className="text-zinc-300">{tooltip.text}</span>
-                  </>
-              ) : (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] text-zinc-400">{tooltip.title}</span>
-                    <span className="text-sm font-bold text-emerald-400">
-                {tooltip.text}
-              </span>
-                  </div>
-              )}
+              </div>
             </div>
+          </StageFrame>
+        )}
+
+        {stage === CATEGORY_STAGE_COUNT + 1 && (
+          <StageFrame showPrev showNext onPrev={movePrev} onNext={moveNext}>
+            <div className="bg-gradient-to-br from-[#121214] to-emerald-400/20 border border-[#27272a] rounded-[20px] p-6 sm:p-8">
+              <div className="text-xs text-emerald-400 font-bold mb-2">
+                AI 솔루션 요약
+              </div>
+              {isAiLoading ? (
+                <div className="h-[240px] flex flex-col items-center justify-center text-zinc-500">
+                  <Sparkles className="w-8 h-8 text-emerald-400 animate-pulse mb-3" />
+                  맞춤형 요약을 정리하고 있습니다...
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                    <h3 className="font-bold text-lg mb-3">종합 진단</h3>
+                    <p className="text-zinc-300 leading-7">{aiData.summary}</p>
+                    <ul className="mt-4 space-y-2">
+                      {aiData.actions.map((action) => (
+                        <li
+                          key={action}
+                          className="flex items-start gap-2 text-sm text-zinc-200"
+                        >
+                          <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                          {action}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-5 text-zinc-300 leading-7 min-h-[220px]">
+                    <TypewriterText text={aiData.detailed} speed={24} />
+                  </div>
+                </div>
+              )}
+              <div className="mt-8 flex justify-center">
+                <button
+                  onClick={onGoMain}
+                  className="group flex items-center justify-center gap-2.5 w-full max-w-sm h-[60px] rounded-2xl transition-all active:scale-[0.98] hover:shadow-[0_8px_30px_rgba(16,185,129,0.5)]"
+                  style={{
+                    background: "linear-gradient(135deg, #10b981, #34d399)",
+                    color: "white",
+                    fontSize: "1.1rem",
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 6px 20px rgba(16,185,129,0.3)",
+                  }}
+                >
+                  <Store className="w-5 h-5 text-white" />
+                  <span>기존 사장님 전용 사이트 입장</span>
+                </button>
+              </div>
+            </div>
+          </StageFrame>
         )}
       </div>
+
+      {tooltip.visible && (
+        <div
+          className="fixed z-[100] pointer-events-none"
+          style={{
+            left: tooltip.x + 14,
+            top: tooltip.y + 14,
+            background: "#18181b",
+            border: "1px solid #3f3f46",
+            borderRadius: "8px",
+            padding: "10px 14px",
+            color: "white",
+            fontSize: "0.85rem",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {tooltip.type === "summary" ? (
+            <>
+              <span className="text-emerald-400 font-semibold mr-2">요약</span>
+              <span className="text-zinc-300">{tooltip.text}</span>
+            </>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] text-zinc-400">{tooltip.title}</span>
+              <span className="text-sm font-bold text-emerald-400">
+                {tooltip.text}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

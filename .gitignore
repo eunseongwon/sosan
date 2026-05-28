@@ -10,3 +10,6 @@ dist/
 
 # Claude Code
 .claude/
+
+# Spring 로컬 설정 (API 키, DB 비밀번호)
+application-local.properties
