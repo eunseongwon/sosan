@@ -59,8 +59,10 @@ public class QuestionGeneratorNode implements AsyncNodeAction<SosangState> {
                 }
 
                 String questionsJson = callLlmGenerateQuestions(answers, missingInfo, answeredKeys);
+                log.info("[QuestionGeneratorNode] LLM 원시 응답 앞 300자: {}",
+                        questionsJson != null ? questionsJson.substring(0, Math.min(300, questionsJson.length())) : "null");
 
-                // LLM 생성 후 중복 key 필터링 (LLM이 무시했을 경우 대비)
+                // LLM 생성 후 중복 key 필터링
                 List<Map<String, Object>> questions = parseQuestions(questionsJson).stream()
                         .filter(q -> {
                             String key = String.valueOf(q.get("key"));
@@ -70,12 +72,23 @@ public class QuestionGeneratorNode implements AsyncNodeAction<SosangState> {
                         })
                         .toList();
 
-                log.info("[QuestionGeneratorNode] {}개 질문 생성 완료 (중복 제거 후)", questions.size());
-                return Map.of("generatedQuestions", questions);
+                // 파싱 실패 또는 빈 결과 → 기본 질문으로 폴백
+                if (questions.isEmpty()) {
+                    log.warn("[QuestionGeneratorNode] 파싱 결과 빈 배열 → 기본 질문 사용");
+                    questions = defaultQuestions(answers.getOrDefault("_userType", "new"), answeredKeys);
+                }
+
+                log.info("[QuestionGeneratorNode] 최종 {}개 질문 반환", questions.size());
+                Map<String, Object> result = new HashMap<>();
+                result.put("generatedQuestions", questions);
+                return result;
 
             } catch (Exception e) {
-                log.error("[QuestionGeneratorNode] 오류", e);
-                return Map.of("generatedQuestions", List.of());
+                log.error("[QuestionGeneratorNode] 오류 → 기본 질문 사용", e);
+                Map<String, String> ans2 = state.answers().orElse(Collections.emptyMap());
+                Map<String, Object> fallback = new HashMap<>();
+                fallback.put("generatedQuestions", defaultQuestions(ans2.getOrDefault("_userType", "new"), new HashSet<>(ALREADY_ASKED)));
+                return fallback;
             }
         });
     }
@@ -94,78 +107,31 @@ public class QuestionGeneratorNode implements AsyncNodeAction<SosangState> {
         String alreadyAsked = String.join(", ", answeredKeys);
         String missing = missingInfo.isEmpty() ? "정보가 불충분함" : String.join(", ", missingInfo);
 
-        String goodTopicsNew = """
-                ✅ 창업 분석에 실질적으로 도움이 되는 질문 주제:
-                - 목표 고객층 (연령/직업군) → 입지·마케팅 전략에 직접 영향
-                - 창업 경험 여부 → 리스크 평가, 정책자금 자격 여부에 영향
-                - 경쟁 인식 수준 → 상권 분석, 차별화 전략에 영향
-                - 창업 목적 (생계형 vs 성장형) → 자금 조달 방식, 수익 목표 설정에 영향
-                - 예상 운영 인원 → 인건비·고정비 계산에 영향
-                - 초기 자금 조달 방법 (본인자금/대출/지원금) → 자금 계획에 직접 영향
-                - 하루 예상 목표 고객 수 → 수익성 추정에 영향
-                """;
-        String goodTopicsExisting = """
-                ✅ 기존 운영 분석에 실질적으로 도움이 되는 질문 주제:
-                - 월 평균 매출 규모 → 수익성·성장성 진단에 직접 영향
-                - 주요 매출 채널 (매장/배달/포장) → 채널 최적화 전략에 영향
-                - 주요 고객층 및 재방문율 → 단골 확보 전략에 영향
-                - 가장 큰 운영 고민 → 맞춤 솔루션 제시에 영향
-                - 현재 마케팅 방법 → 홍보 효율 개선에 영향
-                - 인건비·임대료 부담 수준 → 비용 구조 개선에 영향
-                """;
-        String badTopics = """
-                ❌ 분석 품질을 높이지 않는 질문 (절대 생성 금지):
-                - 선호하는 메뉴, 인테리어 스타일, 브랜드 이미지 등 개인 취향
-                - 구체적인 메뉴명이나 식재료 관련 질문
-                - SNS 계정 보유 여부 등 즉시 확인 불가한 정보
-                - 이미 답변된 내용을 다른 방식으로 다시 묻는 질문
-                - 분석 결과에 영향을 미치지 않는 인구통계 정보
-                """;
+        String roleGuide = "existing".equals(userType)
+                ? "당신은 소상공인 운영 컨설턴트 AI입니다. 목표는 기존 매장의 매출·마케팅·운영 효율을 개선하는 실행 가능한 전략을 제시하는 것입니다."
+                : "당신은 소상공인 창업 컨설턴트 AI입니다. 목표는 창업자의 자금 조달, 입지 선정, 수익성 예측, 리스크 대응 전략을 수립하는 데 필요한 비즈니스 정보를 수집하는 것입니다.";
 
-        String goodTopics = "existing".equals(userType) ? goodTopicsExisting : goodTopicsNew;
+        String businessFocus = "existing".equals(userType)
+                ? "질문은 반드시 매출 규모, 매출 채널, 고객 재방문율, 마케팅 방법, 운영 비용 등 '사업 운영 지표'에 관한 것이어야 합니다."
+                : "질문은 반드시 창업 경험, 목표 고객층, 자금 조달 방법, 경쟁 인식, 예상 운영 규모 등 '사업 분석에 직접 영향을 주는 비즈니스 정보'에 관한 것이어야 합니다. 메뉴 선호, 인테리어 취향 등 개인 취향은 절대 묻지 마세요.";
 
-        String prompt = """
-                소상공인 창업 상담 전문 AI입니다. 아래 기준에 따라 분석 품질을 높이는 핵심 질문만 생성하세요.
+        String prompt = roleGuide + "\n\n"
+                + businessFocus + "\n\n"
+                + "[현재 수집된 사업 정보]\n" + answerLines + "\n"
+                + "[부족한 비즈니스 정보]\n" + missing + "\n"
+                + "[이미 질문한 항목 - 중복 금지]\n" + alreadyAsked + "\n\n"
+                + "위 사업 정보를 바탕으로 컨설팅 품질 향상에 꼭 필요한 질문 1~2개를 생성하세요.\n"
+                + "반드시 아래 JSON 형식으로만 응답하세요:\n"
+                + "{\"questions\": [\n"
+                + "  {\"key\": \"영문camelCase\", \"category\": \"카테고리명\", "
+                + "\"question\": \"질문 내용?\", \"options\": [\"선택지1\",\"선택지2\",\"선택지3\",\"선택지4\",\"아직 미정이에요\"]}\n"
+                + "]}\n"
+                + "key는 중복 금지 목록에 없는 새 영문 camelCase, 선택지 마지막은 '아직 미정이에요'";
 
-                """ + goodTopics + """
-
-                """ + badTopics + """
-
-                [현재 수집된 답변]
-                """ + answerLines + """
-
-                [부족한 정보]
-                """ + missing + """
-
-                [이미 물어본 항목 - 중복 금지]
-                """ + alreadyAsked + """
-
-                위 기준을 철저히 지켜 1~2개의 질문을 생성하세요.
-                각 질문은 다음 형식을 정확히 따르세요:
-
-                [
-                  {
-                    "key": "camelCase 영문 고유 키 (예: targetCustomer, hasExperience, fundingMethod)",
-                    "category": "카테고리명 (예: 창업 경험)",
-                    "question": "질문 내용? (한국어, 창업자에게 친근한 말투)",
-                    "options": ["선택지1", "선택지2", "선택지3", "선택지4", "아직 미정이에요"]
-                  }
-                ]
-
-                규칙:
-                - key는 영문 camelCase, 이미 물어본 항목과 절대 중복 금지
-                - 선택지는 4~5개, 마지막은 "아직 미정이에요"로 통일
-                - 반드시 ✅ 목록에 해당하는 주제만 질문할 것
-                - ❌ 목록에 해당하는 주제는 절대 질문하지 말 것
-                - 1~2개만 생성
-                """;
-
-        // JSON 배열은 직접 반환 불가라서 객체로 감싸서 요청
-        String wrappedPrompt = prompt + "\n\n반드시 {\"questions\": [...]} 형식으로 감싸서 응답하세요.";
         Map<String, Object> wrappedBody = Map.of(
                 "model", "gpt-4o-mini",
-                "messages", List.of(Map.of("role", "user", "content", wrappedPrompt)),
-                "temperature", 0.7,
+                "messages", List.of(Map.of("role", "user", "content", prompt)),
+                "temperature", 0.5,
                 "response_format", Map.of("type", "json_object")
         );
 
@@ -292,5 +258,55 @@ public class QuestionGeneratorNode implements AsyncNodeAction<SosangState> {
 
     private String toCamelCase(String korean) {
         return "extraInfo" + Math.abs(korean.hashCode() % 1000);
+    }
+
+    /** LLM 파싱 실패 시 또는 항상 보여줄 기본 고정 질문 */
+    private List<Map<String, Object>> defaultQuestions(String userType, Set<String> answeredKeys) {
+        List<Map<String, Object>> all = "existing".equals(userType)
+                ? defaultExistingQuestions()
+                : defaultNewQuestions();
+        return all.stream()
+                .filter(q -> !answeredKeys.contains(String.valueOf(q.get("key"))))
+                .toList();
+    }
+
+    private List<Map<String, Object>> defaultNewQuestions() {
+        List<Map<String, Object>> qs = new ArrayList<>();
+
+        Map<String, Object> q1 = new LinkedHashMap<>();
+        q1.put("key", "hasExperience");
+        q1.put("category", "창업 경험");
+        q1.put("question", "관련 업종 경험이 있으신가요?");
+        q1.put("options", List.of("경험 없음", "아르바이트 경험 있음", "유사업종 근무 경험 있음", "직접 운영해본 적 있음", "아직 미정이에요"));
+        qs.add(q1);
+
+        Map<String, Object> q2 = new LinkedHashMap<>();
+        q2.put("key", "targetCustomer");
+        q2.put("category", "목표 고객층");
+        q2.put("question", "주요 목표 고객층은 어떻게 생각하고 계신가요?");
+        q2.put("options", List.of("10~20대", "20~30대 직장인", "가족 단위", "시니어층", "아직 미정이에요"));
+        qs.add(q2);
+
+        return qs;
+    }
+
+    private List<Map<String, Object>> defaultExistingQuestions() {
+        List<Map<String, Object>> qs = new ArrayList<>();
+
+        Map<String, Object> q1 = new LinkedHashMap<>();
+        q1.put("key", "monthlyRevenue");
+        q1.put("category", "월 매출");
+        q1.put("question", "현재 월 평균 매출 규모는 어느 정도인가요?");
+        q1.put("options", List.of("500만 원 미만", "500만~1,000만 원", "1,000만~2,000만 원", "2,000만 원 이상", "아직 미정이에요"));
+        qs.add(q1);
+
+        Map<String, Object> q2 = new LinkedHashMap<>();
+        q2.put("key", "mainChallenge");
+        q2.put("category", "주요 고민");
+        q2.put("question", "현재 가장 큰 경영 고민은 무엇인가요?");
+        q2.put("options", List.of("매출 정체", "마케팅/홍보", "인건비/재료비 관리", "배달 플랫폼 수수료", "아직 미정이에요"));
+        qs.add(q2);
+
+        return qs;
     }
 }

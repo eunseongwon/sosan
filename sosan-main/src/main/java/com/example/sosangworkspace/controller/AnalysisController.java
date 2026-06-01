@@ -52,7 +52,8 @@ public class AnalysisController {
     public ResponseEntity<Map<String, Object>> evaluate(
             @RequestBody Map<String, String> answers) {
         try {
-            log.info("[AnalysisController] 충분성 평가 요청 - 답변 수: {}", answers.size());
+            log.info("[AnalysisController] evaluate 요청 - forceGenerate: {}, 답변 수: {}",
+                    answers.getOrDefault("_forceGenerate", "false"), answers.size());
 
             StateGraph<SosangState> workflow = new StateGraph<>(SosangState::new)
                     .addNode("evaluate", evaluateNode)
@@ -86,18 +87,13 @@ public class AnalysisController {
                 log.info("[AnalysisController] 충분 판단 → 분석 진행");
                 return ResponseEntity.ok(Map.of("status", "ready"));
             } else {
-                List<Map<String, Object>> questions = finalState.generatedQuestions()
-                        .orElse(List.of());
+                List<Map<String, Object>> questions = finalState.generatedQuestions().orElse(List.of());
                 log.info("[AnalysisController] 불충분 → 추가 질문 {}개 반환", questions.size());
-                return ResponseEntity.ok(Map.of(
-                        "status", "needs_more",
-                        "questions", questions
-                ));
+                return ResponseEntity.ok(Map.of("status", "needs_more", "questions", questions));
             }
 
         } catch (Exception e) {
             log.error("[AnalysisController] evaluate 오류", e);
-            // 오류 시 충분한 것으로 처리하여 분석 진행
             return ResponseEntity.ok(Map.of("status", "ready"));
         }
     }

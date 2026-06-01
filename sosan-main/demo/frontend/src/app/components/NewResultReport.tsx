@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import {
   Download, RefreshCw, MapPin, TrendingUp as TrendUp,
@@ -159,8 +159,19 @@ function LocationAnalysisSection({
   onSwitchToExisting?: () => void;
 }) {
   const [currentStep, setCurrentStep] = useState(2);
-  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set([0, 1]));
+  const [checkedItems, setCheckedItems] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem("sosang_checklist");
+      return saved ? new Set<number>(JSON.parse(saved)) : new Set<number>();
+    } catch {
+      return new Set<number>();
+    }
+  });
   const [showCompletion, setShowCompletion] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("sosang_checklist", JSON.stringify([...checkedItems]));
+  }, [checkedItems]);
 
   const toggleCheck = (idx: number) => {
     setCheckedItems((prev) => {
