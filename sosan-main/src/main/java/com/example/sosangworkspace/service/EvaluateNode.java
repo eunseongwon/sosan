@@ -46,7 +46,16 @@ public class EvaluateNode implements AsyncNodeAction<SosangState> {
                 String userType = answers.getOrDefault("_userType", "new");
                 log.info("[EvaluateNode] 판단 시작 - userType: {}, 답변 수: {}", userType, answers.size());
 
-                // 프로그래밍적 체크: 핵심 추가 정보가 하나도 없으면 무조건 insufficient
+                // 1라운드(_forceGenerate=true): 무조건 추가 질문 생성
+                if ("true".equals(answers.getOrDefault("_forceGenerate", "false"))) {
+                    List<String> missing = "existing".equals(userType)
+                            ? List.of("월 매출 규모", "주요 매출 채널")
+                            : List.of("창업 경험 여부", "목표 고객층");
+                    log.info("[EvaluateNode] 1라운드 강제 질문 생성 → insufficient, 부족: {}", missing);
+                    return Map.of("evaluationStatus", "insufficient", "missingInfo", missing);
+                }
+
+                // 2라운드+: 핵심 추가 정보가 하나도 없으면 insufficient
                 Set<String> requiredExtra = "existing".equals(userType)
                         ? EXISTING_REQUIRED_EXTRA : NEW_REQUIRED_EXTRA;
                 boolean hasAnyExtra = answers.keySet().stream()

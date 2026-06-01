@@ -970,7 +970,7 @@ export function AIAnalysisPage() {
     fetch("http://localhost:8080/api/analysis/evaluate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...answers, _userType: userType }),
+      body: JSON.stringify({ ...answers, _userType: userType, _forceGenerate: dynamicQRound === 0 ? "true" : "false" }),
     })
       .then((r) => r.json())
       .then((data) => {
