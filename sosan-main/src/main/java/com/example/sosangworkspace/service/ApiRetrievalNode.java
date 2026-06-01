@@ -36,6 +36,18 @@ public class ApiRetrievalNode implements AsyncNodeAction<SosangState> {
     @Value("${rone.api.key:}")
     private String roneApiKey;
 
+    /** 중소벤처24 - 정부 지원사업 공고 */
+    @Value("${smes.api.key:}")
+    private String smesApiKey;
+
+    /** 국세청 - 사업자등록정보 진위확인 및 상태조회 */
+    @Value("${nts.api.key:}")
+    private String ntsApiKey;
+
+    /** KAMIS - 농산물유통정보 (식재료 시세) */
+    @Value("${kamis.api.key:}")
+    private String kamisApiKey;
+
     private final RestClient restClient = RestClient.create();
 
     // 지역명 → 5자리 법정동 코드
@@ -125,7 +137,11 @@ public class ApiRetrievalNode implements AsyncNodeAction<SosangState> {
                 String molitData = fetchMolitData(region);
                 if (!molitData.isBlank()) context.append(molitData).append("\n");
 
-                // 2. SBIZ 상가정보 API (TODO: 승인 후 활성화)
+                // 2. 중소벤처24 정부 지원사업 공고
+                String smesData = fetchSmesPrograms(bizType);
+                if (!smesData.isBlank()) context.append(smesData).append("\n");
+
+                // 3. SBIZ 상가정보 API (TODO: 승인 후 활성화)
                 // String sbizData = fetchSbizData(region, bizType);
 
                 // 기본 컨텍스트
@@ -230,6 +246,67 @@ public class ApiRetrievalNode implements AsyncNodeAction<SosangState> {
         return text == null ? "" : text.trim();
     }
 
+    @SuppressWarnings("unchecked")
+    private String fetchSmesPrograms(String bizType) {
+        if (smesApiKey == null || smesApiKey.isBlank()) return "";
+        try {
+            String url = "https://www.smes.go.kr/fnct/apiReqst/extPblancInfo"
+                    + "?token=" + smesApiKey
+                    + "&pageIndex=1&pageUnit=10"
+                    + "&pblancSttsCd=ing";
+
+            Map<String, Object> response = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(Map.class);
+
+            if (response == null) return "";
+
+            // 응답에서 항목 추출
+            List<Map<String, Object>> items = extractSmesItems(response);
+            if (items.isEmpty()) return "";
+
+            StringBuilder sb = new StringBuilder("[중소벤처24 정부 지원사업 현황 (진행중)]\n");
+            int count = 0;
+            for (Map<String, Object> item : items) {
+                if (count++ >= 5) break;
+                String title  = getFieldStr(item, "pblancNm", "title", "sj");
+                String org    = getFieldStr(item, "insttNm", "org", "rceptInsttNm");
+                String amount = getFieldStr(item, "sprtScl", "amount", "aplySclCn");
+                String end    = getFieldStr(item, "rceptEndDt", "deadline", "pblancEndDt");
+                sb.append(String.format("  · %s (%s) | 지원규모: %s | 마감: %s\n", title, org, amount, end));
+            }
+            sb.append("(위 지원사업 정보를 자금 조달 분석에 반영해주세요.)\n");
+            log.info("[ApiRetrievalNode] SMES 지원사업 {}건 수집", Math.min(count, 5));
+            return sb.toString();
+
+        } catch (Exception e) {
+            log.warn("[ApiRetrievalNode] SMES 호출 실패: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractSmesItems(Map<String, Object> response) {
+        for (String key : List.of("items", "data", "list", "pblancList", "result")) {
+            Object val = response.get(key);
+            if (val instanceof List) return (List<Map<String, Object>>) val;
+            if (val instanceof Map) {
+                Object inner = ((Map<?, ?>) val).get("items");
+                if (inner instanceof List) return (List<Map<String, Object>>) inner;
+            }
+        }
+        return List.of();
+    }
+
+    private String getFieldStr(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object val = map.get(key);
+            if (val != null && !val.toString().isBlank()) return val.toString();
+        }
+        return "-";
+    }
+
     String getSigunguCode(String regionText) {
         String normalized = regionText
                 .replace("특별시", "").replace("광역시", "").replace("특별자치시", "")
@@ -262,6 +339,22 @@ public class ApiRetrievalNode implements AsyncNodeAction<SosangState> {
             String midBase = parts[parts.length - 2].replaceAll("시$", "");
             String key = midBase + " " + last;
             if (SIGUNGU_CODE_MAP.containsKey(key)) return SIGUNGU_CODE_MAP.get(key);
+        }
+
+        // 구 없이 시만 입력한 경우 (예: "전주시" → "전주 완산구" 45111)
+        // 지도에서 같은 도시명으로 시작하는 첫 번째 항목 반환
+        for (String candidate : new String[]{last, last.replaceAll("시$", ""), parts[0].replaceAll("시$", "")}) {
+            if (candidate.isBlank()) continue;
+            String finalCandidate = candidate;
+            String found = SIGUNGU_CODE_MAP.entrySet().stream()
+                    .filter(e -> e.getKey().startsWith(finalCandidate + " "))
+                    .map(Map.Entry::getValue)
+                    .findFirst()
+                    .orElse(null);
+            if (found != null) {
+                log.info("[ApiRetrievalNode] 구 미지정 → '{}' 첫 번째 일치 코드 사용: {}", candidate, found);
+                return found;
+            }
         }
 
         return null;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search,
   Filter,
@@ -21,7 +21,9 @@ import { Input } from "./ui/input";
 const categories = ["전체", "자금 지원", "교육/컨설팅", "디지털 전환", "임차료", "마케팅", "수출"];
 const regions = ["전국", "서울", "경기", "부산", "대구", "인천", "광주", "대전", "울산", "세종", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"];
 
-const supportData = [
+type SupportItem = { id: number; title: string; org: string; category: string; region: string; amount: string; deadline: string; status: string; desc: string; tags: string[]; url?: string; };
+
+const FALLBACK_DATA: SupportItem[] = [
   {
     id: 1, title: "2026년 소상공인 디지털 전환 지원사업", org: "중소벤처기업부", category: "디지털 전환", region: "전국",
     amount: "최대 500만원", deadline: "2026.03.31", status: "접수중",
@@ -78,6 +80,43 @@ export function GovernmentSupport() {
   const [searchQuery, setSearchQuery] = useState("");
   const [bookmarks, setBookmarks] = useState<Set<number>>(new Set([2, 6]));
   const [showRegionFilter, setShowRegionFilter] = useState(false);
+  const [supportData, setSupportData] = useState<SupportItem[]>(FALLBACK_DATA);
+  const [loading, setLoading] = useState(true);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    fetch("http://localhost:8080/api/support/programs")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.programs) && data.programs.length > 0) {
+          // API 응답을 UI 포맷으로 변환
+          const mapped: SupportItem[] = data.programs.map((p: Record<string, string>, idx: number) => ({
+            id: idx + 1,
+            title:    p.title    || "지원사업명 미제공",
+            org:      p.org      || "중소벤처기업부",
+            category: "자금 지원",
+            region:   "전국",
+            amount:   p.amount   || "-",
+            deadline: p.deadline || "상시",
+            status:   mapStatus(p.status),
+            desc:     p.desc     || "",
+            tags:     [],
+            url:      p.url      || "",
+          }));
+          setSupportData(mapped);
+          setIsLive(true);
+        }
+      })
+      .catch(() => {/* 실패 시 FALLBACK_DATA 유지 */})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const mapStatus = (raw: string) => {
+    if (!raw) return "접수중";
+    if (raw.includes("ing") || raw.includes("접수")) return "접수중";
+    if (raw.includes("pre") || raw.includes("예정")) return "접수예정";
+    return "상시";
+  };
 
   const filtered = supportData.filter((item) => {
     const matchCategory = selectedCategory === "전체" || item.category === selectedCategory;
@@ -121,6 +160,8 @@ export function GovernmentSupport() {
           <h1 className="text-white" style={{ fontSize: '1.55rem', fontWeight: 700, letterSpacing: '-0.02em' }}>정부 지원사업 알림</h1>
         </div>
         <p className="text-gray-400" style={{ fontSize: '0.9rem' }}>지자체별 소상공인 지원금 · 대출 · 교육 정보를 한눈에 확인하세요</p>
+        {isLive && <span style={{ fontSize: "0.72rem", background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399", padding: "2px 10px", borderRadius: 999, fontWeight: 600 }}>● 중소벤처24 실시간</span>}
+        {loading && <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.3)" }}>불러오는 중...</span>}
       </div>
 
       {/* Quick Stats */}

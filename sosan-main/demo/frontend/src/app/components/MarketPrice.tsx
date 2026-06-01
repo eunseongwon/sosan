@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -48,7 +48,7 @@ interface Ingredient {
 
 const categories = ["전체", "수산물", "축산물", "채소", "과일", "곡물/유제품"];
 
-const ingredientsData: Ingredient[] = [
+const FALLBACK_INGREDIENTS: Ingredient[] = [
   {
     id: 1, name: "광어(양식)", emoji: "🐟", category: "수산물",
     price: 18500, unit: "kg", change: 1200, changePercent: 6.9, direction: "up",
@@ -170,14 +170,65 @@ export function MarketPrice() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItem, setSelectedItem] = useState<number | null>(null);
   const [priceAlertItems, setPriceAlertItems] = useState<Set<number>>(new Set());
+  const [ingredients, setIngredients] = useState<Ingredient[]>(FALLBACK_INGREDIENTS);
+  const [isLive, setIsLive] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("샘플 데이터");
+
+  useEffect(() => {
+    fetch("http://localhost:8080/api/market/ingredients")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          // API 응답 → UI Ingredient 포맷 변환
+          const mapped: Ingredient[] = data.items.map((item: Record<string, unknown>, idx: number) => {
+            const price = Number(item.price) || 0;
+            const prev  = Number(item.prevPrice) || price;
+            const change = Number(item.change) || 0;
+            const changePct = Number(item.changePercent) || 0;
+            const dir = (item.direction as string) || "stable";
+            // 주간 데이터 없으면 현재가 기반으로 생성
+            const days = ["월","화","수","목","금","토","일"];
+            const weeklyData = days.map((day, i) => ({
+              day, price: Math.round(prev + (change / 7) * i),
+            }));
+            return {
+              id: idx + 1,
+              name:          (item.name as string) || "",
+              emoji:         getEmoji(item.name as string),
+              category:      (item.category as string) || "채소",
+              price,
+              unit:          (item.unit as string) || "kg",
+              change,
+              changePercent: changePct,
+              direction:     dir as "up" | "down" | "stable",
+              weekAgo:       prev,
+              monthAgo:      Math.round(prev * 0.97),
+              yearAvg:       Math.round(prev * 0.98),
+              isVolatile:    Math.abs(changePct) >= 10,
+              updatedAt:     "오늘 KAMIS",
+              weeklyData,
+            };
+          });
+          setIngredients(mapped);
+          setIsLive(true);
+          setLastUpdated("KAMIS 실시간");
+        }
+      })
+      .catch(() => {/* 실패 시 FALLBACK 유지 */});
+  }, []);
+
+  const getEmoji = (name: string) => {
+    const map: Record<string, string> = { "배추":"🥬","무":"🍠","당근":"🥕","시금치":"🌿","상추":"🥗","대파":"🧅","쪽파":"🌱","양파":"🧅","마늘":"🧄","고추":"🌶️","사과":"🍎","배":"🍐","포도":"🍇","수박":"🍉","딸기":"🍓","쌀":"🍚","찹쌀":"🍚","계란":"🥚","닭고기":"🍗","돼지고기":"🥩","쇠고기":"🥩" };
+    return map[name] || "🥦";
+  };
 
   const filtered = useMemo(() => {
-    return ingredientsData.filter((item) => {
+    return ingredients.filter((item) => {
       const matchCat = selectedCategory === "전체" || item.category === selectedCategory;
       const matchSearch = !searchQuery || item.name.includes(searchQuery);
       return matchCat && matchSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, ingredients]);
 
   const directionIcon = (d: PriceDirection) => {
     if (d === "up") return <ArrowUpRight className="w-3.5 h-3.5" />;
@@ -209,6 +260,8 @@ export function MarketPrice() {
           <h1 className="text-white" style={{ fontSize: '1.55rem', fontWeight: 700, letterSpacing: '-0.02em' }}>식자재 시세</h1>
         </div>
         <p className="text-gray-400" style={{ fontSize: '0.9rem' }}>실시간 식자재 가격 · 시세 변동 추이</p>
+        {isLive && <span style={{ fontSize: "0.72rem", background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399", padding: "2px 10px", borderRadius: 999, fontWeight: 600, marginTop: 4, display: "inline-block" }}>● KAMIS 실시간</span>}
+        {!isLive && <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.3)", marginTop: 4, display: "inline-block" }}>샘플 데이터 (KAMIS 미연결)</span>}
       </div>
 
       <div className="space-y-6">

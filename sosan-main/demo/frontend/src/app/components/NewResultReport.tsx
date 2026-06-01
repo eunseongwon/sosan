@@ -280,7 +280,7 @@ function LocationAnalysisSection({
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p style={{ fontSize: "0.9rem", fontWeight: 700, color: "white", marginBottom: "2px" }}>현재 접수 중인 정부 지원사업</p>
-                      <p style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.35)" }}>중소벤처24 · 총 {bizinfoData.totalCount.toLocaleString()}개 공고 중 업종 관련 상위</p>
+                      <p style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.35)" }}>중소벤처24 · 총 {bizinfoData.total.toLocaleString()}개 공고 중 업종 관련 상위</p>
                     </div>
                     <a
                       href="https://www.bizinfo.go.kr"
@@ -294,8 +294,8 @@ function LocationAnalysisSection({
                   <div className="flex flex-col gap-0">
                     {bizinfoData.items.map((item, i) => (
                       <a
-                        key={item.pblancId || i}
-                        href={item.detailUrl}
+                        key={item.id || i}
+                        href={item.url || "https://www.smes.go.kr"}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-start justify-between py-3 group"
@@ -303,19 +303,24 @@ function LocationAnalysisSection({
                       >
                         <div style={{ flex: 1, minWidth: 0, paddingRight: "12px" }}>
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            {item.bizAreaNm && (
+                            {item.status && (
                               <span style={{ fontSize: "0.62rem", padding: "1px 6px", borderRadius: "99px", background: "rgba(16,185,129,0.12)", color: "#34d399", border: "1px solid rgba(16,185,129,0.2)", flexShrink: 0 }}>
-                                {item.bizAreaNm}
+                                {item.status}
+                              </span>
+                            )}
+                            {item.amount && (
+                              <span style={{ fontSize: "0.62rem", padding: "1px 6px", borderRadius: "99px", background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", flexShrink: 0 }}>
+                                {item.amount}
                               </span>
                             )}
                             <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "rgba(255,255,255,0.9)" }}
                               className="group-hover:text-white transition-colors">
-                              {item.pblancNm}
+                              {item.title}
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                            {item.institution && <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.4)" }}>{item.institution}</p>}
-                            {item.period && <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.3)" }}>접수 {item.period}</p>}
+                            {item.org && <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.4)" }}>{item.org}</p>}
+                            {item.deadline && <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.3)" }}>마감 {item.deadline}</p>}
                           </div>
                         </div>
                         <span style={{ fontSize: "0.7rem", color: "#34d399", flexShrink: 0, marginTop: "2px" }}>신청 →</span>

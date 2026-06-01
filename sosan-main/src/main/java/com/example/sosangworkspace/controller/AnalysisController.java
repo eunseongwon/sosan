@@ -25,7 +25,6 @@ import java.util.concurrent.CompletableFuture;
 @RestController
 @RequestMapping("/api/analysis")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"})
 public class AnalysisController {
 
     private final EvaluateNode evaluateNode;

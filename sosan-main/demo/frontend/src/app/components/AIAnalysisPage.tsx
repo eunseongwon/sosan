@@ -10,9 +10,11 @@ import {
   Star,
   BadgeDollarSign,
   Settings2,
+  AlertTriangle,
 } from "lucide-react";
 import { NewResultReport } from "./NewResultReport";
 import { type AiAnalysisResult } from "../utils/openai";
+import { type BizinfoContext } from "../utils/budongsan";
 import { ExistingResultReport } from "./ExistingResultReport";
 import { DetailedStartupQuestionnaire } from "./DetailedStartupQuestionnaire";
 import {
@@ -558,13 +560,27 @@ function AddressStep({
   address: AddressValue;
   onAddressChange: (v: AddressValue) => void;
 }) {
+  // 스크립트 로딩 완료 여부 — onload 콜백으로 정확하게 추적
+  const [scriptReady, setScriptReady] = useState(
+    !!(window as any).daum?.Postcode
+  );
+
   useEffect(() => {
-    if ((window as any).daum?.Postcode) return;
-    if (document.getElementById("daum-postcode-script")) return;
+    if ((window as any).daum?.Postcode) {
+      setScriptReady(true);
+      return;
+    }
+    const existing = document.getElementById("kakao-postcode-script");
+    if (existing) {
+      // 이미 태그가 있으면 load 이벤트만 연결
+      existing.addEventListener("load", () => setScriptReady(true));
+      return;
+    }
     const script = document.createElement("script");
-    script.id = "daum-postcode-script";
-    script.src =
-      "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.id = "kakao-postcode-script";
+    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.async = true;
+    script.onload = () => setScriptReady(true);
     document.head.appendChild(script);
   }, []);
 
@@ -578,158 +594,99 @@ function AddressStep({
           detail: "",
         });
       },
+      theme: {
+        bgColor: "#1a1d27",
+        searchBgColor: "#222533",
+        contentBgColor: "#1a1d27",
+        pageBgColor: "#1a1d27",
+        textColor: "#e2e8f0",
+        queryTextColor: "#ffffff",
+        postcodeTextColor: "#34d399",
+        emphTextColor: "#34d399",
+        outlineColor: "#2d3148",
+      },
     }).open();
   };
 
   const isValid = !!address.addr;
 
   const baseInput: React.CSSProperties = {
-    width: "100%",
-    height: "52px",
-    padding: "0 16px",
-    borderRadius: "12px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.45)",
-    fontSize: "0.95rem",
-    outline: "none",
-    cursor: "default",
+    width: "100%", height: "52px", padding: "0 16px",
+    borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)",
+    background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.45)",
+    fontSize: "0.95rem", outline: "none", cursor: "default",
     transition: "border-color 0.2s, box-shadow 0.2s",
   };
 
   return (
-    <div
-      style={{
-        ...PAGE_BG,
-        padding: "32px 20px",
-        maxWidth: "840px",
-        margin: "0 auto",
-      }}
-    >
+    <div style={{ ...PAGE_BG, padding: "32px 20px", maxWidth: "840px", margin: "0 auto" }}>
       <TopBar onBack={onBack} />
       <ProgressBar current={step} total={total} />
 
-      <div
-        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full mb-7"
-        style={{
-          background: "rgba(16,185,129,0.15)",
-          border: "1px solid rgba(16,185,129,0.35)",
-          fontSize: "0.8rem",
-          fontWeight: 600,
-          color: "#34d399",
-        }}
-      >
+      <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full mb-7"
+        style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.35)", fontSize: "0.8rem", fontWeight: 600, color: "#34d399" }}>
         <Sparkles style={{ width: "14px", height: "14px" }} />
         AI 어시스턴트의 질문
       </div>
 
-      <h2
-        className="mb-10"
-        style={{
-          fontSize: "clamp(1.6rem, 4vw, 2.4rem)",
-          fontWeight: 800,
-          letterSpacing: "-0.04em",
-          lineHeight: 1.2,
-        }}
-      >
+      <h2 className="mb-10"
+        style={{ fontSize: "clamp(1.6rem, 4vw, 2.4rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.2 }}>
         현재 매장이 위치한 지역은 어디인가요?
       </h2>
 
       <div className="space-y-3 mb-10">
         <div className="flex gap-2">
-          <input
-            readOnly
-            value={address.zonecode}
-            placeholder="우편번호"
-            style={{ ...baseInput, width: "160px", flexShrink: 0 }}
-          />
+          <input readOnly value={address.zonecode} placeholder="우편번호"
+            style={{ ...baseInput, width: "160px", flexShrink: 0 }} />
           <button
             onClick={openPostcode}
+            disabled={!scriptReady}
             style={{
-              height: "52px",
-              padding: "0 22px",
-              borderRadius: "12px",
-              background: "rgba(16,185,129,0.15)",
-              border: "1px solid rgba(16,185,129,0.35)",
-              color: "#34d399",
-              fontSize: "0.92rem",
-              fontWeight: 600,
-              cursor: "pointer",
+              height: "52px", padding: "0 22px", borderRadius: "12px", flexShrink: 0,
+              background: scriptReady ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${scriptReady ? "rgba(16,185,129,0.35)" : "rgba(255,255,255,0.1)"}`,
+              color: scriptReady ? "#34d399" : "rgba(255,255,255,0.3)",
+              fontSize: "0.92rem", fontWeight: 600,
+              cursor: scriptReady ? "pointer" : "wait",
               whiteSpace: "nowrap",
-              flexShrink: 0,
             }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "rgba(16,185,129,0.28)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "rgba(16,185,129,0.15)")
-            }
+            onMouseEnter={(e) => scriptReady && (e.currentTarget.style.background = "rgba(16,185,129,0.28)")}
+            onMouseLeave={(e) => scriptReady && (e.currentTarget.style.background = "rgba(16,185,129,0.15)")}
           >
-            주소 검색
+            {scriptReady ? "주소 검색" : "로딩 중..."}
           </button>
         </div>
 
-        <input
-          readOnly
-          value={address.addr}
+        <input readOnly value={address.addr}
           placeholder="주소 검색 버튼을 눌러 주소를 입력해 주세요"
-          style={baseInput}
-        />
+          style={baseInput} />
 
         <input
           readOnly={!address.addr}
           value={address.detail}
-          onChange={(e) =>
-            onAddressChange({ ...address, detail: e.target.value })
-          }
-          placeholder={
-            address.addr
-              ? "상세주소를 입력하세요 (동, 호수 등)"
-              : "주소 검색 후 입력 가능합니다"
-          }
+          onChange={(e) => onAddressChange({ ...address, detail: e.target.value })}
+          placeholder={address.addr ? "상세주소를 입력하세요 (동, 호수 등)" : "주소 검색 후 입력 가능합니다"}
           style={{
             ...baseInput,
             cursor: address.addr ? "text" : "default",
             color: address.addr ? "white" : "rgba(255,255,255,0.25)",
-            border: address.addr
-              ? "1px solid rgba(255,255,255,0.18)"
-              : "1px solid rgba(255,255,255,0.07)",
-            background: address.addr
-              ? "rgba(255,255,255,0.06)"
-              : "rgba(255,255,255,0.02)",
+            border: address.addr ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.07)",
+            background: address.addr ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.02)",
           }}
-          onFocus={(e) => {
-            if (address.addr) {
-              e.currentTarget.style.borderColor = "rgba(16,185,129,0.55)";
-              e.currentTarget.style.boxShadow =
-                "0 0 0 3px rgba(16,185,129,0.1)";
-            }
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = address.addr
-              ? "rgba(255,255,255,0.18)"
-              : "rgba(255,255,255,0.07)";
-            e.currentTarget.style.boxShadow = "none";
-          }}
+          onFocus={(e) => { if (address.addr) { e.currentTarget.style.borderColor = "rgba(16,185,129,0.55)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(16,185,129,0.1)"; }}}
+          onBlur={(e) => { e.currentTarget.style.borderColor = address.addr ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)"; e.currentTarget.style.boxShadow = "none"; }}
         />
       </div>
 
-      <button
-        onClick={onNext}
-        disabled={!isValid}
+      <button onClick={onNext} disabled={!isValid}
         className="w-full h-[56px] rounded-2xl transition-all active:scale-[0.99]"
         style={{
-          background: isValid
-            ? "linear-gradient(135deg,#10b981,#34d399)"
-            : "rgba(255,255,255,0.06)",
+          background: isValid ? "linear-gradient(135deg,#10b981,#34d399)" : "rgba(255,255,255,0.06)",
           color: isValid ? "white" : "rgba(255,255,255,0.25)",
-          fontSize: "1.02rem",
-          fontWeight: 700,
-          border: "none",
-          cursor: isValid ? "pointer" : "not-allowed",
+          fontSize: "1.02rem", fontWeight: 700,
+          border: "none", cursor: isValid ? "pointer" : "not-allowed",
           boxShadow: isValid ? "0 8px 28px rgba(16,185,129,0.4)" : "none",
-        }}
-      >
+        }}>
         다음으로
       </button>
     </div>
@@ -809,7 +766,7 @@ type FlowState =
   | "deepPosInput"
   | "deepCategorySelect"
   | "deepQuestions"
-  | "q0new"
+  | "warningNew"
   | "detailedNew"
   | "q1"
   | "q2"
@@ -849,7 +806,7 @@ type ChoiceFlowState = Exclude<
   | "deepPosInput"
   | "deepCategorySelect"
   | "deepQuestions"
-  | "q0new"
+  | "warningNew"
   | "detailedNew"
   | "q2ex"
   | "evaluating"
@@ -936,6 +893,7 @@ export function AIAnalysisPage() {
   const [csvError, setCsvError] = useState("");
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
   const [aiError, setAiError] = useState(false);
+  const [bizinfoData, setBizinfoData] = useState<BizinfoContext | null>(null);
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
   const [dynamicQIndex, setDynamicQIndex] = useState(0);
   const [dynamicQRound, setDynamicQRound] = useState(0); // 최대 2라운드
@@ -1012,7 +970,7 @@ export function AIAnalysisPage() {
     fetch("http://localhost:8080/api/analysis/evaluate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(answers),
+      body: JSON.stringify({ ...answers, _userType: userType }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -1061,7 +1019,19 @@ export function AIAnalysisPage() {
           .catch(() => { if (!cancelled) setAiError(true); })
       : Promise.resolve();
 
-    Promise.all([minDelay, apiCall]).then(() => {
+    // 신생 창업자 - SMES 정부 지원사업 병렬 로딩
+    const smesCall = userType === "new"
+      ? fetch(`http://localhost:8080/api/support/programs?bizType=${encodeURIComponent((answers["bizType"] as string) || "")}`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (!cancelled && Array.isArray(data.programs) && data.programs.length > 0) {
+              setBizinfoData({ items: data.programs, total: data.total ?? data.programs.length });
+            }
+          })
+          .catch(() => {})
+      : Promise.resolve();
+
+    Promise.all([minDelay, apiCall, smesCall]).then(() => {
       if (!cancelled) setFlow("result");
     });
 
@@ -1085,12 +1055,13 @@ export function AIAnalysisPage() {
     setGeneratedQuestions([]);
     setDynamicQIndex(0);
     setDynamicQRound(0);
+    setBizinfoData(null);
   };
   const startFlow = (type: "new" | "existing") => {
     resetAnswers();
     setUserType(type);
     if (type === "new") {
-      setFlow("q0new");
+      setFlow("warningNew");
       return;
     }
     setFlow("existingEntry");
@@ -1266,12 +1237,15 @@ export function AIAnalysisPage() {
     setAnalysisMode("light");
     setAiResult(null);
     setAiError(false);
+    setBizinfoData(null);
     setFlow("typeSelect");
   };
   const handleExistingMain = () => {
     resetAnswers();
     setUserType("existing");
     setAnalysisMode("light");
+    setAiResult(null);
+    setAiError(false);
     setFlow("existingEntry");
   };
   const handleSwitchToExisting = () => startFlow("existing");
@@ -1297,13 +1271,14 @@ export function AIAnalysisPage() {
         answers={answers}
         aiResult={aiResult}
         aiError={aiError}
+        bizinfoData={bizinfoData}
         onReset={handleReset}
         onSwitchToExisting={handleSwitchToExisting}
       />
     );
 
   /* ── 설문 스텝 (신생 창업자) ── */
-  if (flow === "q0new")
+  if (flow === "warningNew")
     return (
       <div style={PAGE_BG}>
         <div className="min-h-screen flex flex-col items-center justify-start pt-24 px-4">
@@ -1312,7 +1287,7 @@ export function AIAnalysisPage() {
               <button
                 onClick={() => setFlow("typeSelect")}
                 className="flex items-center gap-1 text-sm font-medium"
-                style={{ color: "rgba(255,255,255,0.4)" }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)" }}
               >
                 <ChevronLeft className="w-4 h-4" /> 이전
               </button>
@@ -1320,87 +1295,46 @@ export function AIAnalysisPage() {
 
             {/* 브랜드 */}
             <div className="flex items-center gap-3 mb-10">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{
-                  background: "linear-gradient(135deg,#f97316,#fb923c)",
-                  boxShadow: "0 6px 20px rgba(249,115,22,0.4)",
-                }}
-              >
+              <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: "linear-gradient(135deg,#f97316,#fb923c)", boxShadow: "0 6px 20px rgba(249,115,22,0.4)" }}>
                 <Store className="w-6 h-6 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl font-black text-white leading-tight tracking-tight">
-                  소상광장
-                </span>
-                <span
-                  className="text-xs font-semibold"
-                  style={{ color: "rgba(255,255,255,0.4)" }}
-                >
-                  AI 맞춤 분석
-                </span>
+                <span className="text-xl font-black text-white leading-tight tracking-tight">소상광장</span>
+                <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.4)" }}>AI 맞춤 분석</span>
               </div>
             </div>
 
-            <h2 className="text-2xl font-black text-white mb-10">
-              구체적인 창업 계획이 있으신가요?
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                {
-                  label: "예",
-                  value: "예",
-                  desc: "업종·위치 등 어느 정도 구체적인 계획이 있어요",
-                },
-                {
-                  label: "아니오",
-                  value: "아니오",
-                  desc: "아직 막연하게 창업을 고려 중이에요",
-                },
-              ].map((opt) => {
-                const selected = ans("hasPlan") === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => set("hasPlan", opt.value)}
-                    className="flex flex-col items-start p-6 rounded-2xl border-2 text-left transition-all"
-                    style={{
-                      background: selected
-                        ? "rgba(16,185,129,0.15)"
-                        : "rgba(255,255,255,0.04)",
-                      borderColor: selected
-                        ? "#10b981"
-                        : "rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <span className="text-2xl font-black text-white mb-2">
-                      {opt.label}
-                    </span>
-                    <span
-                      className="text-xs leading-relaxed"
-                      style={{ color: "rgba(255,255,255,0.45)" }}
-                    >
-                      {opt.desc}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* 경고 제목 */}
+            <div className="flex items-center gap-2 mb-6">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" style={{ color: "#f97316" }} />
+              <h2 className="text-xl font-black text-white">잠깐! 창업 전 꼭 체크해 보세요.</h2>
             </div>
+
+            {/* 경고 박스 */}
+            <div className="rounded-2xl p-6 mb-8"
+              style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.25)" }}>
+              <p style={{ fontSize: "0.97rem", color: "rgba(255,255,255,0.75)", lineHeight: 1.85 }}>
+                소상공인 창업 후,{" "}
+                <span style={{ color: "#fb923c", fontWeight: 700 }}>초기 자금이 바닥나는 3~6개월 구간</span>과{" "}
+                <span style={{ color: "#fb923c", fontWeight: 700 }}>매출이 고정비를 못 넘기는 1~3년 구간</span>은
+                수익보다 지출이 많을 수 있습니다.
+                <br /><br />
+                이 <span style={{ color: "#fb923c", fontWeight: 700 }}>'데스밸리'</span> 구간을 버틸
+                마음의 준비와 여유 운영 자금이 계획되어 있으신가요?
+              </p>
+            </div>
+
             <button
-              disabled={!ans("hasPlan")}
-              onClick={() =>
-                setFlow(ans("hasPlan") === "예" ? "detailedNew" : "q1")
-              }
-              className="mt-8 w-full h-14 rounded-2xl font-bold text-white transition-all"
+              onClick={() => setFlow("detailedNew")}
+              className="w-full h-14 rounded-2xl font-bold text-white transition-all"
               style={{
-                background: ans("hasPlan")
-                  ? "linear-gradient(135deg,#10b981,#34d399)"
-                  : "rgba(255,255,255,0.08)",
-                color: ans("hasPlan") ? "white" : "rgba(255,255,255,0.3)",
-                cursor: ans("hasPlan") ? "pointer" : "not-allowed",
+                background: "linear-gradient(135deg,#10b981,#34d399)",
+                boxShadow: "0 8px 28px rgba(16,185,129,0.4)",
+                border: "none", cursor: "pointer",
               }}
             >
-              다음
+              확인했습니다
             </button>
           </div>
         </div>
@@ -1410,7 +1344,7 @@ export function AIAnalysisPage() {
   if (flow === "detailedNew")
     return (
       <DetailedStartupQuestionnaire
-        onBack={() => setFlow("q0new")}
+        onBack={() => setFlow("warningNew")}
         onComplete={(detailedAnswers) => {
           setAnswers((prev) => ({ ...prev, ...detailedAnswers }));
           setFlow("evaluating"); // 고정 질문 완료 → 충분성 판단
@@ -1559,7 +1493,7 @@ export function AIAnalysisPage() {
               ),
               title: "신생 창업자",
               desc: "처음 가게를 시작하려고 준비 중입니다. 업종, 위치, 비용 등 전반적인 가이드가 필요해요.",
-              nextFlow: "q0new" as FlowState,
+              nextFlow: "warningNew" as FlowState,
             },
             {
               key: "existing" as const,

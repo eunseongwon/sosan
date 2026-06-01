@@ -547,7 +547,7 @@ export function ExistingOwnerFlowViews(props: ExistingOwnerFlowViewsProps) {
     const isFirst = index === 0;
     const isLast = index === total - 1;
     if (!current) {
-      setFlow("loading");
+      setFlow("evaluating");
       return null;
     }
     const goBack = () => {
@@ -560,7 +560,7 @@ export function ExistingOwnerFlowViews(props: ExistingOwnerFlowViewsProps) {
     };
     const goNext = () => {
       if (isLast) {
-        setFlow("loading");
+        setFlow("evaluating");
         return;
       }
       if (isDeep) setDeepQuestionIndex((prev) => Math.min(total - 1, prev + 1));

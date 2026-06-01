@@ -12,14 +12,8 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * LangGraph4j 노드: 현재 답변으로 더 나은 분석을 위해 추가 질문이 필요한지 AI가 판단.
- *
- * 단순히 "미정" 여부가 아니라, AI 관점에서 추가 질문을 하면
- * 분석 품질이 의미있게 향상되는지를 기준으로 판단한다.
- *
- * 반환값:
- *   - evaluationStatus: "sufficient" | "insufficient"
- *   - missingInfo: 더 물어보면 좋을 정보 목록 (insufficient일 때)
+ * LangGraph4j 노드: 현재 답변으로 추가 질문을 하면 분석 품질이 향상되는지 AI가 판단.
+ * _userType 값에 따라 신생 창업자 / 기존 사장님 컨텍스트를 구분한다.
  */
 @Slf4j
 @Component
@@ -37,14 +31,15 @@ public class EvaluateNode implements AsyncNodeAction<SosangState> {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Map<String, String> answers = state.answers().orElse(Collections.emptyMap());
-                log.info("[EvaluateNode] 분석 품질 판단 시작 - 답변 수: {}", answers.size());
+                String userType = answers.getOrDefault("_userType", "new");
+                log.info("[EvaluateNode] 판단 시작 - userType: {}, 답변 수: {}", userType, answers.size());
 
                 if (openaiApiKey == null || openaiApiKey.isBlank()) {
                     log.warn("[EvaluateNode] OpenAI 키 미설정 - sufficient로 진행");
                     return Map.of("evaluationStatus", "sufficient", "missingInfo", List.of());
                 }
 
-                String result = callLlmEvaluate(answers);
+                String result = callLlmEvaluate(answers, userType);
                 log.info("[EvaluateNode] 판단 결과: {}", result);
                 return parseEvaluationResult(result);
 
@@ -56,37 +51,15 @@ public class EvaluateNode implements AsyncNodeAction<SosangState> {
     }
 
     @SuppressWarnings("unchecked")
-    private String callLlmEvaluate(Map<String, String> answers) throws Exception {
+    private String callLlmEvaluate(Map<String, String> answers, String userType) throws Exception {
         StringBuilder answerLines = new StringBuilder();
-        answers.forEach((k, v) -> answerLines.append("- ").append(k).append(": ").append(v).append("\n"));
+        answers.entrySet().stream()
+                .filter(e -> !e.getKey().startsWith("_"))
+                .forEach(e -> answerLines.append("- ").append(e.getKey()).append(": ").append(e.getValue()).append("\n"));
 
-        String prompt = """
-                당신은 소상공인 창업 전문 AI 컨설턴트입니다.
-                아래는 창업을 준비 중인 사람이 제공한 답변입니다.
-
-                [현재 수집된 답변]
-                """ + answerLines + """
-
-                지금 이 정보만으로도 분석 보고서를 작성할 수 있지만,
-                추가로 1~3개의 질문을 더 하면 훨씬 더 구체적이고 도움이 되는 분석을 제공할 수 있는지 판단하세요.
-
-                [판단 기준]
-                - sufficient: 현재 정보로도 충분히 좋은 분석이 가능하고, 추가 질문이 분석 품질을 크게 향상시키지 않을 때
-                - insufficient: 아래 중 하나라도 해당될 때
-                  · 목표 고객층, 경쟁 우려 정도, 특정 선호 위치, 기존 운영 경험 등
-                    핵심 맥락 정보가 빠져서 맞춤형 조언이 어려울 때
-                  · 더 물어보면 훨씬 더 정확한 자금/입지/마케팅 전략을 제시할 수 있을 때
-                  · 업종이나 지역이 너무 광범위해 구체적인 인사이트를 주기 어려울 때
-
-                단, 이미 충분히 구체적인 정보가 있다면 굳이 추가 질문하지 않아도 됩니다.
-
-                JSON으로만 응답하세요:
-                {
-                  "status": "sufficient" 또는 "insufficient",
-                  "reason": "판단 이유 한 문장",
-                  "missingInfo": ["더 물어보면 좋을 정보 (한국어, insufficient일 때만 1~3개 항목명)"]
-                }
-                """;
+        String prompt = "existing".equals(userType)
+                ? buildExistingOwnerPrompt(answerLines.toString())
+                : buildNewStartupPrompt(answerLines.toString());
 
         Map<String, Object> requestBody = Map.of(
                 "model", "gpt-4o-mini",
@@ -106,6 +79,58 @@ public class EvaluateNode implements AsyncNodeAction<SosangState> {
         List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
         Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
         return (String) message.get("content");
+    }
+
+    private String buildNewStartupPrompt(String answerLines) {
+        return """
+                당신은 소상공인 창업 전문 AI 컨설턴트입니다.
+                아래는 창업을 준비 중인 사람이 제공한 답변입니다.
+
+                [현재 수집된 답변]
+                """ + answerLines + """
+
+                추가로 1~2개의 질문을 더 하면 훨씬 더 구체적이고 도움이 되는 창업 분석을 제공할 수 있는지 판단하세요.
+
+                [판단 기준]
+                - sufficient: 현재 정보로 충분히 좋은 창업 분석이 가능하고, 추가 질문이 분석 품질을 크게 향상시키지 않을 때
+                - insufficient: 아래 중 하나 이상 해당될 때
+                  · 목표 고객층, 경쟁 우려 정도, 기존 경험, 특정 위치 선호 등 핵심 맥락이 빠진 경우
+                  · 더 물어보면 자금/입지/마케팅 전략을 훨씬 정확하게 제시할 수 있는 경우
+                  · 업종 또는 지역이 너무 광범위해 구체적인 인사이트를 주기 어려운 경우
+
+                JSON으로만 응답하세요:
+                {
+                  "status": "sufficient" 또는 "insufficient",
+                  "reason": "판단 이유 한 문장",
+                  "missingInfo": ["더 물어보면 좋을 정보 항목명 (한국어, insufficient일 때만 1~2개)"]
+                }
+                """;
+    }
+
+    private String buildExistingOwnerPrompt(String answerLines) {
+        return """
+                당신은 소상공인 운영 최적화 전문 AI 컨설턴트입니다.
+                아래는 현재 가게를 운영 중인 사장님이 제공한 답변입니다.
+
+                [현재 수집된 답변]
+                """ + answerLines + """
+
+                추가로 1~2개의 질문을 더 하면 훨씬 더 구체적이고 실행 가능한 운영 개선 분석을 제공할 수 있는지 판단하세요.
+
+                [판단 기준]
+                - sufficient: 현재 정보로 충분히 좋은 운영 진단이 가능하고, 추가 질문이 분석 품질을 크게 향상시키지 않을 때
+                - insufficient: 아래 중 하나 이상 해당될 때
+                  · 매출 규모, 주요 채널, 고객층, 경쟁 상황 등 핵심 운영 지표가 빠진 경우
+                  · 더 물어보면 마케팅/원가/단골 전략을 훨씬 정확하게 제시할 수 있는 경우
+                  · 현재 고민(challenge)에 대한 구체적인 배경 정보가 없어 맞춤 조언이 어려운 경우
+
+                JSON으로만 응답하세요:
+                {
+                  "status": "sufficient" 또는 "insufficient",
+                  "reason": "판단 이유 한 문장",
+                  "missingInfo": ["더 물어보면 좋을 정보 항목명 (한국어, insufficient일 때만 1~2개)"]
+                }
+                """;
     }
 
     private Map<String, Object> parseEvaluationResult(String json) {
