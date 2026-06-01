@@ -26,6 +26,18 @@ public class EvaluateNode implements AsyncNodeAction<SosangState> {
             .baseUrl("https://api.openai.com")
             .build();
 
+    // 신생 창업자: 이 중 하나라도 없으면 무조건 insufficient
+    private static final Set<String> NEW_REQUIRED_EXTRA = Set.of(
+            "hasExperience", "experience", "targetCustomer", "fundingMethod",
+            "competitionLevel", "startupPurpose", "headcount", "dailyCustomers"
+    );
+
+    // 기존 사장님: 이 중 하나라도 없으면 무조건 insufficient
+    private static final Set<String> EXISTING_REQUIRED_EXTRA = Set.of(
+            "revenue", "sales", "repeat", "challenge", "marketing",
+            "customerPool", "monthlyRevenue"
+    );
+
     @Override
     public CompletableFuture<Map<String, Object>> apply(SosangState state) {
         return CompletableFuture.supplyAsync(() -> {
@@ -33,6 +45,20 @@ public class EvaluateNode implements AsyncNodeAction<SosangState> {
                 Map<String, String> answers = state.answers().orElse(Collections.emptyMap());
                 String userType = answers.getOrDefault("_userType", "new");
                 log.info("[EvaluateNode] 판단 시작 - userType: {}, 답변 수: {}", userType, answers.size());
+
+                // 프로그래밍적 체크: 핵심 추가 정보가 하나도 없으면 무조건 insufficient
+                Set<String> requiredExtra = "existing".equals(userType)
+                        ? EXISTING_REQUIRED_EXTRA : NEW_REQUIRED_EXTRA;
+                boolean hasAnyExtra = answers.keySet().stream()
+                        .anyMatch(k -> requiredExtra.contains(k));
+
+                if (!hasAnyExtra) {
+                    List<String> missing = "existing".equals(userType)
+                            ? List.of("월 매출 규모", "주요 매출 채널")
+                            : List.of("창업 경험 여부", "목표 고객층");
+                    log.info("[EvaluateNode] 핵심 추가 정보 없음 → insufficient, 부족: {}", missing);
+                    return Map.of("evaluationStatus", "insufficient", "missingInfo", missing);
+                }
 
                 if (openaiApiKey == null || openaiApiKey.isBlank()) {
                     log.warn("[EvaluateNode] OpenAI 키 미설정 - sufficient로 진행");
